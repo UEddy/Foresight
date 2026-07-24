@@ -235,6 +235,11 @@ const Competitors = {
   },
 
   statusPill(c) {
+    // Trial expiry archives pages above the Free limit: kept read-only, never
+    // deleted, restored automatically on upgrade.
+    if (c.archived) {
+      return `<span class="status-pill status-pill--paused" title="Archived on the Free plan. Upgrade to restore."><span class="status-dot"></span>Archived</span>`;
+    }
     if (!c.active) {
       return `<span class="status-pill status-pill--paused"><span class="status-dot"></span>Paused</span>`;
     }

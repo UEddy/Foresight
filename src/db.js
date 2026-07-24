@@ -837,6 +837,27 @@ async function initDb() {
     sqlDb.run('ALTER TABLE outbound_runs ADD COLUMN funnel TEXT');
   }
 
+  // 14-day Pro trial (see src/config.js TRIAL_DAYS). trial_ends_at is set at
+  // workspace creation for NEW signups; NULL on pre-trial workspaces means "no
+  // trial" (existing users keep their current tier, nothing changes for them).
+  // trial_notices is a JSON array of reminder markers already sent ("day10",
+  // "day13", "expiry") so the daily sweep never double-sends.
+  const wsTrialCols = (sqlDb.exec('PRAGMA table_info(workspaces)')[0]?.values || []).map(v => v[1]);
+  if (wsTrialCols.length && !wsTrialCols.includes('trial_ends_at')) {
+    sqlDb.run('ALTER TABLE workspaces ADD COLUMN trial_ends_at DATETIME');
+  }
+  if (wsTrialCols.length && !wsTrialCols.includes('trial_notices')) {
+    sqlDb.run("ALTER TABLE workspaces ADD COLUMN trial_notices TEXT DEFAULT '[]'");
+  }
+
+  // Trial expiry keeps data: competitors above the Free limit are ARCHIVED
+  // (read-only, excluded from page counts and monitoring), never deleted, and
+  // restored on upgrade. 0 = live, 1 = archived.
+  const compArchCols = (sqlDb.exec('PRAGMA table_info(competitors)')[0]?.values || []).map(v => v[1]);
+  if (compArchCols.length && !compArchCols.includes('archived')) {
+    sqlDb.run('ALTER TABLE competitors ADD COLUMN archived INTEGER DEFAULT 0');
+  }
+
   saveDb();
 
   // Demo account (seeded login + sample data) is a DEV-ONLY convenience. It must

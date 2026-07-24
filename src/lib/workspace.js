@@ -7,6 +7,7 @@
 // localized change here rather than a codebase-wide refactor.
 
 const { getDb } = require('../db');
+const { TRIAL_DAYS } = require('../config');
 
 // The workspace the user is currently acting in.
 //   Phase 10:  always their owned personal workspace.
@@ -50,8 +51,12 @@ function createPersonalWorkspace(userId, name, email) {
   const wsName = `${base}'s workspace`;
 
   return db.savepoint(() => {
-    const r = db.prepare('INSERT INTO workspaces (name, owner_user_id, subscription_tier) VALUES (?, ?, ?)')
-      .run(wsName, userId, 'free');
+    // Every new workspace starts a TRIAL_DAYS Pro trial (no card, no plan
+    // choice). trial_ends_at is the only trigger: getWorkspaceTier treats an
+    // unexpired trial as effective Pro, and expiry falls back to Free naturally.
+    const r = db.prepare(
+      "INSERT INTO workspaces (name, owner_user_id, subscription_tier, trial_ends_at) VALUES (?, ?, ?, datetime('now', ?))"
+    ).run(wsName, userId, 'free', `+${TRIAL_DAYS} days`);
     const wsId = r.lastInsertRowid;
     const hasMember = db.prepare('SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(wsId, userId);
     if (!hasMember) {

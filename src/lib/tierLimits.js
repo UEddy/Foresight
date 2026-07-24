@@ -108,13 +108,21 @@ function workspaceOwnerIsAdmin(workspaceId) {
   return u ? isAdminEmail(u.email) : false;
 }
 
-// Effective tier, accounting for cancellation grace periods.
+// Effective tier, accounting for cancellation grace periods and the 14-day
+// Pro trial overlay (src/lib/trial.js): a free workspace with an unexpired
+// trial_ends_at resolves to Pro; when the trial passes it falls back to free
+// automatically, with no scheduled downgrade step needed for gating.
 function getWorkspaceTier(workspaceId) {
   if (!workspaceId) return 'free';
-  const w = getDb().prepare('SELECT subscription_tier, subscription_status, subscription_current_period_end FROM workspaces WHERE id = ?').get(workspaceId);
+  const w = getDb().prepare('SELECT subscription_tier, subscription_status, subscription_current_period_end, subscription_id, trial_ends_at FROM workspaces WHERE id = ?').get(workspaceId);
   if (!w) return 'free';
   const tier = w.subscription_tier || 'free';
-  if (tier === 'free') return 'free';
+  if (tier === 'free') {
+    // Trial overlay: effective Pro until trial_ends_at passes. Lazy require to
+    // keep module-load order simple (trial.js also requires db.js).
+    const { isTrialActive } = require('./trial');
+    return isTrialActive(w) ? 'pro' : 'free';
+  }
   if (w.subscription_status === 'expired') return 'free';
 
   // Cancelled (scheduled to end) but still inside the paid period → keep tier.

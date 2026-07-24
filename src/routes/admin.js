@@ -18,6 +18,7 @@ const { logAudit } = require('../lib/audit');
 // Authoritative effective-tier source (same one the dashboard/sidebar/Settings
 // read). Tallied per workspace for the stats breakdown so every surface agrees.
 const { getWorkspaceTier } = require('../lib/tierLimits');
+const { getTrialInfo } = require('../lib/trial');
 // Admin identification (ADMIN_EMAILS) now lives in lib/ so the tier-limit layer
 // can share the exact same gate. Re-exported below to keep this module's API.
 const { getAdminEmails, isAdminEmail } = require('../lib/adminEmails');
@@ -247,8 +248,30 @@ function renderWaitlist(rows) {
     <a class="back" href="/app">&larr; Back to app</a>`);
 }
 
+// Trial cell: "on trial" while active (with days remaining and the downgrade
+// date, which is simply trial_ends_at), "expired" after, blank for paid or
+// pre-trial accounts. Paid subscriptions supersede trial state entirely.
+function trialCells(r) {
+  if (r.subscription_id || (r.subscription_tier && r.subscription_tier !== 'free')) {
+    return `<td><span class="pill pill-done">${esc(r.subscription_tier || 'paid')}</span></td><td class="muted">-</td><td class="muted">-</td>`;
+  }
+  const info = getTrialInfo({
+    subscription_tier: r.subscription_tier, subscription_id: r.subscription_id, trial_ends_at: r.trial_ends_at,
+  });
+  if (info.onTrial) {
+    return `<td><span class="pill pill-trial">on trial</span></td><td>${esc(info.daysLeft)}</td><td class="muted">${esc(String(r.trial_ends_at).slice(0, 10))}</td>`;
+  }
+  if (info.expired) {
+    return `<td><span class="pill pill-pending">expired</span></td><td class="muted">0</td><td class="muted">${esc(String(r.trial_ends_at).slice(0, 10))}</td>`;
+  }
+  return `<td class="muted">-</td><td class="muted">-</td><td class="muted">-</td>`;
+}
+
 function renderUsers(rows) {
   const devCount = rows.filter(r => r.is_developer).length;
+  const onTrialCount = rows.filter(r => getTrialInfo({
+    subscription_tier: r.subscription_tier, subscription_id: r.subscription_id, trial_ends_at: r.trial_ends_at,
+  }).onTrial).length;
   const body = rows.length
     ? rows.map(r => `
         <tr>
@@ -256,19 +279,20 @@ function renderUsers(rows) {
           <td>${esc(r.email)}</td>
           <td>${esc(r.name)}</td>
           <td>${devPill(!!r.is_developer)}</td>
+          ${trialCells(r)}
           <td>${esc(r.created_at)}</td>
         </tr>`).join('')
-    : `<tr><td class="empty" colspan="5">No users.</td></tr>`;
+    : `<tr><td class="empty" colspan="8">No users.</td></tr>`;
 
   return renderShell('Users', `
     ${navHtml('/admin/users')}
     <div class="admin-head">
       <h1>Users</h1>
-      <span class="admin-sub"><span class="admin-count">${devCount}</span> with developer access</span>
+      <span class="admin-sub"><span class="admin-count">${onTrialCount}</span> on trial, <span class="admin-count">${devCount}</span> with developer access</span>
     </div>
-    <p class="admin-sub">Developer accounts have an emergency override granting unlimited Pro features regardless of subscription. Manage via <a href="/admin/set-developer">Set developer</a>.</p>
+    <p class="admin-sub">Developer accounts have an emergency override granting full Pro features regardless of subscription. Manage via <a href="/admin/set-developer">Set developer</a>. Downgrade date is the trial end; expired accounts fall back to Free automatically.</p>
     <table>
-      <thead><tr><th>id</th><th>email</th><th>name</th><th>developer</th><th>created_at</th></tr></thead>
+      <thead><tr><th>id</th><th>email</th><th>name</th><th>developer</th><th>trial</th><th>days left</th><th>downgrade date</th><th>created_at</th></tr></thead>
       <tbody>${body}</tbody>
     </table>
     <a class="back" href="/app">&larr; Back to app</a>`);
@@ -438,9 +462,13 @@ function registerAdminRoutes(app) {
   });
 
   app.get('/admin/users', requireAdmin, (req, res) => {
-    const rows = getDb().prepare(
-      'SELECT id, email, name, is_developer, created_at FROM users ORDER BY id ASC'
-    ).all();
+    const rows = getDb().prepare(`
+      SELECT u.id, u.email, u.name, u.is_developer, u.created_at,
+             w.subscription_tier, w.subscription_id, w.trial_ends_at
+      FROM users u
+      LEFT JOIN workspaces w ON w.owner_user_id = u.id
+      ORDER BY u.id ASC
+    `).all();
     logAudit({ userId: req.adminUser.id, workspaceId: req.workspaceId || null,
       eventType: 'admin_view_users', eventData: { count: rows.length }, req });
     res.type('html').send(renderUsers(rows));

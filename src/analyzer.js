@@ -319,6 +319,85 @@ async function analyzeChange(competitor, before, after, diff, historyText, userC
     `AI response failed schema validation twice: ${firstParse.reason}; retry: ${secondParse.reason}`, null);
 }
 
+// ── Baseline brief (day-1 onboarding) ────────────────────────────────────────
+// A brand-new competitor has no prior snapshot, so there is no diff to analyze.
+// Rather than showing an empty dashboard until the site changes (a 14-day trial
+// is shorter than most sites' change cadence), we brief the CURRENT state of
+// the page: positioning, pricing, features, what a sales team should know
+// walking in today. Same JSON schema and validation as a change brief, so every
+// downstream consumer (feed, brief view, email) works unchanged.
+function buildBaselinePrompt(competitor, content, userContextText) {
+  const contextBlock = userContextText && userContextText.trim()
+    ? `\nUSER'S BUSINESS CONTEXT (write the analysis from this company's strategic perspective):\n${userContextText}\n`
+    : '';
+  return `Competitor: ${competitor.name}
+URL: ${competitor.url}
+${competitor.description ? `Internal context: ${competitor.description}\n` : ''}${contextBlock}
+FIRST SNAPSHOT. This competitor was just added and there is no previous
+version to compare against. Instead of analyzing a change, brief the sales
+team on the CURRENT state of this page: how the competitor positions itself,
+what it charges, which capabilities it leads with, and what to know before a
+deal against them. Set is_meaningful=true. Base threat_level on how directly
+this competitor's current positioning and pricing threaten the user (default
+"low" when unclear). In changed_what, describe what the page shows today, e.g.
+"Initial snapshot: <competitor> positions as ...". Do not invent a change and
+do not claim anything changed.
+
+Page title: ${content.title || 'N/A'}
+Meta description: ${content.metaDescription || 'N/A'}
+Headings: ${(content.headings || []).slice(0, 25).join(' | ') || 'N/A'}
+Pricing section: ${(content.pricing || '').substring(0, 2500) || 'N/A'}
+Features section: ${(content.features || '').substring(0, 2000) || 'N/A'}
+Body extract: ${(content.bodyText || '').substring(0, 2500) || 'N/A'}
+
+Return the JSON object only, same schema as always.`;
+}
+
+async function analyzeBaseline(competitor, content, userContextText) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { analysis: buildBaselineFallback(competitor, content), usage: null };
+  }
+  const prompt = buildBaselinePrompt(competitor, content, userContextText);
+  const first = await callAnthropic(prompt, null);
+  const firstParse = tryParseAnalysis(first.raw);
+  if (firstParse.ok) return { analysis: firstParse.value, usage: first.usage };
+
+  const second = await callAnthropic(prompt, { priorRaw: first.raw, reason: firstParse.reason });
+  const secondParse = tryParseAnalysis(second.raw);
+  if (secondParse.ok) {
+    return {
+      analysis: secondParse.value,
+      usage: {
+        input_tokens:  (first.usage.input_tokens  || 0) + (second.usage.input_tokens  || 0),
+        output_tokens: (first.usage.output_tokens || 0) + (second.usage.output_tokens || 0),
+      },
+    };
+  }
+  throw new AIAnalysisError('ai_invalid_response',
+    `AI baseline response failed schema validation twice: ${firstParse.reason}; retry: ${secondParse.reason}`, null);
+}
+
+// No-AI-key baseline: a thin but honest first row so the dashboard is never
+// empty even without an Anthropic key configured.
+function buildBaselineFallback(competitor, content) {
+  const hasPricing = Boolean((content?.pricing || '').trim());
+  return {
+    is_meaningful: true,
+    changed_what: `Initial snapshot of ${competitor.name} captured`,
+    why_it_matters: 'This is the monitoring baseline. Future briefs will describe what changed against this snapshot.',
+    threat_level: 'low',
+    threat_reasoning: 'Baseline capture, no change to assess yet.',
+    recommended_response: 'Review the captured page and confirm it is the right one to monitor.',
+    talking_points: [],
+    headline: `Now monitoring ${competitor.name}`,
+    summary: `First snapshot of ${competitor.url} captured.${hasPricing ? ' A pricing section was detected and will be tracked for changes.' : ''} Monitoring is active; you will get a brief when this page changes.`,
+    key_changes: [{ category: 'other', description: 'Initial snapshot captured', impact: 'Monitoring baseline established' }],
+    opportunity: '',
+    historical_context: '',
+    pattern_tags: [],
+  };
+}
+
 function buildFallbackAnalysis(competitor, diff) {
   const hasHeadingChanges = (diff?.afterHeadings || []).some(h => !(diff?.beforeHeadings || []).includes(h));
   const hasPricingChanges = (diff?.afterPricing || '') !== (diff?.beforePricing || '');
@@ -352,6 +431,8 @@ function estimateCostUsd(usage) {
 
 module.exports = {
   analyzeChange,
+  analyzeBaseline,
+  buildBaselineFallback,
   buildFallbackAnalysis,
   buildPrompt,
   AIAnalysisError,

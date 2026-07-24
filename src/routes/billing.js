@@ -11,6 +11,8 @@ const router = express.Router();
 const { getDb } = require('../db');
 const ls = require('../lemonSqueezy');
 const { getWorkspaceTier } = require('../lib/tierLimits');
+const { getTrialInfo } = require('../lib/trial');
+const { TRIAL_DAYS } = require('../config');
 const { logAudit } = require('../lib/audit');
 const { mapStatus, toTs } = require('../lemonSqueezyWebhook');
 const limits = require('../middleware/rateLimits');
@@ -27,8 +29,10 @@ router.post('/checkout', limits.billingCheckout, async (req, res) => {
 
   const ws = workspace(req);
   if (!ws) return res.status(404).json({ error: 'Workspace not found.' });
-  if (getWorkspaceTier(ws.id) === 'pro') {
-    return res.status(409).json({ error: 'This workspace is already on Pro.' });
+  // Gate on the REAL paid subscription, not the effective tier: a trial
+  // workspace resolves to effective Pro but must still be able to purchase.
+  if (ws.subscription_id || (ws.subscription_tier || 'free') !== 'free') {
+    return res.status(409).json({ error: 'This workspace already has a subscription.' });
   }
 
   try {
@@ -53,17 +57,26 @@ router.post('/portal', limits.billingPortal, async (req, res) => {
   }
 });
 
-// GET /api/billing/subscription → current workspace subscription state.
+// GET /api/billing/subscription → current workspace subscription state,
+// including the 14-day trial overlay the in-app banner renders from.
 router.get('/subscription', (req, res) => {
   const ws = workspace(req);
   if (!ws) return res.status(404).json({ error: 'Workspace not found.' });
+  const trialInfo = getTrialInfo(ws);
   res.json({
     tier: ws.subscription_tier,
-    effectiveTier: getWorkspaceTier(ws.id), // honours cancellation grace period
+    effectiveTier: getWorkspaceTier(ws.id), // honours cancellation grace period and trial
     status: ws.subscription_status,
     currentPeriodEnd: ws.subscription_current_period_end,
     cancelAtPeriodEnd: !!ws.subscription_cancel_at_period_end,
     hasSubscription: !!ws.subscription_id,
+    trial: {
+      onTrial: trialInfo.onTrial,
+      expired: trialInfo.expired,
+      daysLeft: trialInfo.daysLeft,
+      trialEndsAt: trialInfo.trialEndsAt,
+      trialDays: TRIAL_DAYS,
+    },
   });
 });
 

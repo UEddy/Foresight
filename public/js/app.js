@@ -291,9 +291,44 @@ const App = {
 
     App.backfillTimezone();
     App.updateUserUI();
+    App.renderTrialBanner();
     App.updateBadges();
     window.addEventListener('hashchange', App.route);
     App.route();
+  },
+
+  // Trial banner: "X days left in your trial" with an upgrade button, shown for
+  // the whole trial. From day 10 onward the copy also names the fallback so the
+  // downgrade is never a surprise. Data comes from /api/billing/subscription
+  // (trial overlay computed server-side; trialDays mirrors config TRIAL_DAYS).
+  renderTrialBanner() {
+    const t = App.subscription?.trial;
+    if (!t || !t.onTrial || App.subscription?.hasSubscription) return;
+    const wrap = document.querySelector('.main-wrapper');
+    const topbar = document.querySelector('.main-wrapper .topbar');
+    if (!wrap || !topbar || el('trial-banner')) return;
+
+    const n = t.daysLeft;
+    const dayWord = n === 1 ? 'day' : 'days';
+    const nearEnd = typeof t.trialDays === 'number' && n <= (t.trialDays - 10);
+    const msg = nearEnd
+      ? `${n} ${dayWord} left. After that you stay on Free with 1 competitor.`
+      : `${n} ${dayWord} left in your trial`;
+
+    const banner = document.createElement('div');
+    banner.className = 'trial-banner' + (nearEnd ? ' trial-banner--urgent' : '');
+    banner.id = 'trial-banner';
+    const span = document.createElement('span');
+    span.className = 'trial-banner-text';
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-primary btn-sm';
+    btn.textContent = 'Upgrade to Pro';
+    btn.addEventListener('click', () => Billing.subscribe(btn));
+    banner.appendChild(span);
+    banner.appendChild(btn);
+    topbar.insertAdjacentElement('afterend', banner);
   },
 
   // Silent timezone backfill. Timezone is captured at signup and never shown in

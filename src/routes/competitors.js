@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { getDb, extractDomainFromUrl } = require('../db');
 const { checkCompetitor }  = require('../scheduler');
-const { canAddPage, canAddPageToCompetitor, MAX_PAGES_PER_COMPETITOR, upgradeRequired } = require('../lib/tierLimits');
+const { canAddPage, canAddPageToCompetitor, MAX_PAGES_PER_COMPETITOR, upgradeRequired, getWorkspaceTier } = require('../lib/tierLimits');
 const { logAudit } = require('../lib/audit');
 const { getCompetitorHistory, generatePatternCallouts } = require('../historicalContext');
 const { normalizeCompetitorUrl, canonicalUrlKey } = require('../lib/urlNormalize');
@@ -36,9 +36,25 @@ function pagesInGroup(db, groupId) {
 }
 
 // Total monitored pages in the workspace — the value compared against the plan
-// page limit.
+// page limit. Archived pages (trial expiry keeps them read-only above the Free
+// cap) do not count: they are not monitored and must not block the one slot
+// the Free plan grants.
 function workspacePageCount(db, workspaceId) {
-  return db.prepare('SELECT COUNT(*) AS n FROM competitors WHERE workspace_id = ?').get(workspaceId).n;
+  return db.prepare('SELECT COUNT(*) AS n FROM competitors WHERE workspace_id = ? AND COALESCE(archived, 0) = 0').get(workspaceId).n;
+}
+
+// Archived competitor page matching this URL (same canonicalization as
+// findDuplicateUrl), or null. Re-adding a previously archived domain restores
+// the original row, and with it the full change timeline: that is the backfill
+// path for "prior snapshots exist for this domain".
+function findArchivedByUrl(db, workspaceId, url) {
+  const key = canonicalUrlKey(url);
+  if (!key) return null;
+  const rows = db.prepare('SELECT * FROM competitors WHERE workspace_id = ? AND COALESCE(archived, 0) = 1').all(workspaceId);
+  for (const r of rows) {
+    if (canonicalUrlKey(r.url) === key) return r;
+  }
+  return null;
 }
 
 // Find an existing competitor (group) for this user by case-insensitive name, or
@@ -77,6 +93,14 @@ function validateCssSelector(raw) {
 
 router.get('/', (req, res) => {
   const db   = getDb();
+
+  // Restore on upgrade: the moment the workspace is entitled beyond Free
+  // (paid subscription or admin/developer override), any competitors archived
+  // at trial expiry come back automatically, timeline intact.
+  if (getWorkspaceTier(req.workspaceId) !== 'free') {
+    db.prepare('UPDATE competitors SET archived = 0 WHERE workspace_id = ? AND COALESCE(archived, 0) = 1').run(req.workspaceId);
+  }
+
   // change_count and the "last change" fields feed customer-facing counts and
   // badges, so they exclude trivial (AI-downgraded / pre-AI-gated) changes.
   // Those rows are retained in the table for audit but never surfaced to users.
@@ -152,6 +176,26 @@ router.post('/', (req, res) => {
   const rm = validateRenderMode(req.body.render_mode);
   if (rm.error) return res.status(400).json({ error: rm.error });
 
+  // Re-adding a domain that was archived at trial expiry RESTORES the original
+  // row instead of creating a fresh one, so the full change timeline for that
+  // domain comes back with it (the "prior snapshots exist" backfill path).
+  // Must run before duplicate detection, which would otherwise 409 on the
+  // archived row. Restoring consumes a live page slot, so the plan cap applies.
+  const archivedMatch = findArchivedByUrl(db, req.workspaceId, normalizedUrl);
+  if (archivedMatch) {
+    const livePages = workspacePageCount(db, req.workspaceId);
+    if (!canAddPage(req.workspaceId, livePages)) {
+      logAudit({ workspaceId: req.workspaceId, userId: req.userId, eventType: 'gate_violation', eventData: { feature: 'add_competitor', pages: livePages, restore: true }, req });
+      return upgradeRequired(res, 'add_competitor');
+    }
+    db.prepare('UPDATE competitors SET archived = 0, active = 1 WHERE id = ?').run(archivedMatch.id);
+    const restoredRow = db.prepare('SELECT * FROM competitors WHERE id = ?').get(archivedMatch.id);
+    const restoredGroup = restoredRow.group_id
+      ? db.prepare('SELECT name FROM competitor_groups WHERE id = ?').get(restoredRow.group_id)
+      : null;
+    return res.status(200).json({ ...restoredRow, group_name: restoredGroup?.name || restoredRow.name, restored: true });
+  }
+
   // Duplicate detection uses the same normalization, so "apple.com" is caught as
   // a duplicate of an existing "https://www.apple.com".
   if (findDuplicateUrl(db, req.userId, normalizedUrl) != null) {
@@ -196,6 +240,18 @@ router.post('/', (req, res) => {
   ).run(req.userId, req.workspaceId, group.id, pageLabel || null, group.name, normalizedUrl, description || null, sel.value, rm.value, domain);
 
   const created = db.prepare('SELECT * FROM competitors WHERE id = ?').get(result.lastInsertRowid);
+
+  // Day-1 content guarantee: run a full check immediately (not at the next
+  // scheduled run) and generate a baseline AI brief on the CURRENT state of the
+  // page, so the dashboard shows real content within minutes of signup instead
+  // of waiting days for the competitor's site to change. Fire-and-forget: the
+  // add response never blocks on the fetch or the AI call.
+  setImmediate(() => {
+    checkCompetitor(created, db, { baselineBrief: true }).catch(err => {
+      console.error(`First check failed for competitor ${created.id}:`, err.message);
+    });
+  });
+
   res.status(201).json({ ...created, group_name: group.name });
 });
 
@@ -203,6 +259,10 @@ router.put('/:id', (req, res) => {
   const db  = getDb();
   const row = db.prepare('SELECT * FROM competitors WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Not found' });
+  // Archived (trial expiry) rows are read-only: visible, never editable.
+  if (row.archived) {
+    return res.status(403).json({ error: 'This competitor is archived on the Free plan. Upgrade to Pro to restore and edit it.' });
+  }
 
   let name        = row.name;
   let url         = row.url;
@@ -362,6 +422,9 @@ router.put('/:id/toggle', (req, res) => {
   const db  = getDb();
   const row = db.prepare('SELECT * FROM competitors WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Not found' });
+  if (row.archived) {
+    return res.status(403).json({ error: 'This competitor is archived on the Free plan. Upgrade to Pro to restore it.' });
+  }
   const newActive = row.active ? 0 : 1;
   db.prepare('UPDATE competitors SET active = ? WHERE id = ?').run(newActive, row.id);
   res.json({ active: !!newActive });
@@ -371,12 +434,18 @@ router.post('/:id/check', async (req, res) => {
   const db  = getDb();
   const row = db.prepare('SELECT * FROM competitors WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
   if (!row) return res.status(404).json({ error: 'Not found' });
+  if (row.archived) {
+    return res.status(403).json({ error: 'This competitor is archived on the Free plan. Upgrade to Pro to restore and check it.' });
+  }
 
-  // Respond immediately; run check in background
+  // Respond immediately; run check in background. baselineBrief covers the
+  // edge where a competitor was added before first-check-on-add existed (or
+  // the first fetch failed): the first successful manual check still produces
+  // a baseline brief instead of a silent hash write.
   res.json({ message: 'Check started', competitor_id: row.id });
 
   try {
-    await checkCompetitor(row, db);
+    await checkCompetitor(row, db, { baselineBrief: true });
   } catch (err) {
     console.error(`Manual check failed for competitor ${row.id}:`, err.message);
   }

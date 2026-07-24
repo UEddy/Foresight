@@ -328,4 +328,77 @@ function buildBriefHtml(competitor, analysis, changeId) {
 </html>`;
 }
 
-module.exports = { sendOtpEmail, sendAccountDeletionEmail, sendBriefEmail, buildBriefHtml, buildCalendarReauthHtml, LOGO_URL };
+// ── Trial lifecycle emails ─────────────────────────────────────────────────────
+// Three short transactional notices sent by the daily trial sweep
+// (src/scheduler.js runTrialSweep): a heads-up on day 10, a final notice on day
+// 13, and the expiry notice. Each states plainly what the account keeps: no
+// lockout, data intact, Free plan limits. Copy is deliberately short and uses
+// no em-dashes or en-dashes (CLAUDE.md).
+const TRIAL_EMAIL_COPY = {
+  day10: {
+    subject: (daysLeft) => `${daysLeft} days left in your Nivaria Pro trial`,
+    heading: 'Your trial is winding down',
+    body: (daysLeft) => `You have ${daysLeft} days left in your 14-day Pro trial. After that you stay on the Free plan with 1 monitored competitor, manual checks, and AI briefs by email. Nothing gets deleted. To keep daily monitoring on up to 15 pages, upgrade to Pro for $20 a month.`,
+    cta: 'Upgrade to Pro',
+  },
+  day13: {
+    subject: () => 'Your Nivaria trial ends tomorrow',
+    heading: 'Last day of Pro',
+    body: () => 'Your 14-day Pro trial ends tomorrow. After that you stay on the Free plan: 1 monitored competitor, manual checks, and AI briefs by email. Your account, briefs, and competitors are all kept. Upgrade to Pro for $20 a month to keep daily monitoring on up to 15 pages.',
+    cta: 'Upgrade to Pro',
+  },
+  expiry: {
+    subject: () => 'Your Nivaria trial ended. Your account is still active.',
+    heading: 'You are now on the Free plan',
+    body: () => 'Your Pro trial has ended and your account moved to the Free plan. You keep 1 monitored competitor, manual checks, and AI briefs by email. Competitors above the Free limit are archived, not deleted, and come back the moment you upgrade. Pro is $20 a month.',
+    cta: 'Upgrade to Pro',
+  },
+};
+
+async function sendTrialEmail(toEmail, { variant, daysLeft }) {
+  const copy = TRIAL_EMAIL_COPY[variant];
+  if (!copy) throw new Error(`unknown trial email variant: ${variant}`);
+  const subject = copy.subject(daysLeft);
+  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const upgradeUrl = `${appUrl}/app#/settings`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#000000;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#000000;padding:48px 20px">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#0A0A0A;border:1px solid #222233;border-radius:16px;padding:40px 36px">
+        <tr><td align="center" style="padding-bottom:20px">
+          <img src="${LOGO_URL}" alt="Nivaria" width="120" style="display:block">
+        </td></tr>
+        <tr><td style="color:#F0F0F8;font-size:20px;font-weight:700;padding-bottom:12px" align="center">${copy.heading}</td></tr>
+        <tr><td style="color:#888899;font-size:14px;line-height:1.7;padding-bottom:24px" align="center">${copy.body(daysLeft)}</td></tr>
+        <tr><td align="center">
+          <a href="${upgradeUrl}" style="display:inline-block;background:#4338CA;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 28px;border-radius:10px">${copy.cta}</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[EMAIL_DELIVERY_FAILED]', { error: 'RESEND_API_KEY not configured', recipient: toEmail, purpose: `trial_${variant}` });
+    return { fallback: true, delivered: false };
+  }
+  try {
+    const resp = await axios.post(
+      'https://api.resend.com/emails',
+      { from: FROM, to: [toEmail], subject, html },
+      { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 12000 }
+    );
+    return { delivered: true, data: resp.data };
+  } catch (err) {
+    const errorMessage = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error('[EMAIL_DELIVERY_FAILED]', { error: errorMessage, recipient: toEmail, purpose: `trial_${variant}` });
+    return { fallback: true, delivered: false };
+  }
+}
+
+module.exports = { sendOtpEmail, sendAccountDeletionEmail, sendBriefEmail, sendTrialEmail, buildBriefHtml, buildCalendarReauthHtml, LOGO_URL, TRIAL_EMAIL_COPY };

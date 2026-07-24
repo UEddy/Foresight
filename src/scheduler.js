@@ -1,10 +1,12 @@
 const cron = require('node-cron');
 const { getDb } = require('./db');
 const { fetchPageContent, generateDiff, classifyScrapeError } = require('./scraper');
-const { analyzeChange, buildFallbackAnalysis, estimateCostUsd } = require('./analyzer');
+const { analyzeChange, analyzeBaseline, buildBaselineFallback, buildFallbackAnalysis, estimateCostUsd } = require('./analyzer');
+const { getTrialInfo } = require('./lib/trial');
+const { TRIAL_REMINDER_DAYS_LEFT } = require('./config');
 const { classifyChange } = require('./changeGate');
 const { sendAlerts, sendPatternAlert } = require('./webhooks');
-const { sendBriefEmail } = require('./email');
+const { sendBriefEmail, sendTrialEmail } = require('./email');
 const { canWorkspaceAccess } = require('./lib/tierLimits');
 const { classifyChangeTypes, PATTERN_TYPES, TYPE_LABEL, runNightlyForAllUsers } = require('./correlationEngine');
 const { getCompetitorHistory, invalidateCompetitorHistory } = require('./historicalContext');
@@ -18,7 +20,7 @@ function fetchErrorToStatus(err, url) {
   return classifyScrapeError(err, url);
 }
 
-async function checkCompetitor(competitor, db) {
+async function checkCompetitor(competitor, db, opts = {}) {
   const renderMode = competitor.render_mode === 'js' ? 'js' : 'fetch';
   console.log(`  Checking: ${competitor.name} (${competitor.url}) [render=${renderMode}]`);
 
@@ -44,6 +46,15 @@ async function checkCompetitor(competitor, db) {
     db.prepare(`UPDATE competitors SET last_check_status = ?, last_check_error = ?, last_check_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(status, human.slice(0, 500), competitor.id);
     return { ok: false, status, error_type, error: human };
+  }
+
+  // ── BASELINE BRIEF (first check of a new competitor) ────────────────────────
+  // A fresh competitor has no last_content_hash, so the diff path below can
+  // never fire on the first check. When the caller asks for it (the add-
+  // competitor route does, so a trial signup sees real content within minutes),
+  // generate a brief on the CURRENT state of the page instead of a diff.
+  if (!competitor.last_content_hash && opts.baselineBrief) {
+    return await runBaselineBrief(competitor, db, content, hash);
   }
 
   // ── CHANGE DETECTION ─────────────────────────────────────────────────────────
@@ -214,30 +225,32 @@ async function checkCompetitor(competitor, db) {
     // meaningful (gate + AI both agree it's worth a sales team's attention).
     if (analysisStatus === 'ok' && isMeaningful === 1) {
       const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(competitor.user_id);
+
+      // Brief-notification email. Unlike the Slack/Discord webhooks below, the
+      // email is NOT tier-gated: the Free plan's stated fallback is "AI briefs
+      // by email", so every meaningful brief is emailed regardless of tier,
+      // gated only on the brief_email_enabled preference (default ON).
+      // Recipient rule: the configured notification_email if set, otherwise the
+      // account email. Best effort: sendBriefEmail never throws and logs
+      // failures itself; the lookup is wrapped so nothing here can disrupt the
+      // pipeline. No email address or brief content is logged.
+      if (settings && settings.brief_email_enabled !== 0) {
+        try {
+          const account = db.prepare('SELECT email FROM users WHERE id = ?').get(competitor.user_id);
+          const recipient = settings.notification_email || account?.email;
+          if (recipient) {
+            await sendBriefEmail(recipient, { competitor, analysis, changeId: changeRowId });
+          }
+        } catch (emailErr) {
+          console.error('[EMAIL_DELIVERY_FAILED]', { error: emailErr.message, purpose: 'brief_notification' });
+        }
+      }
+
       if (settings && canWorkspaceAccess(competitor.workspace_id, 'webhooks')) {
         try {
           await sendAlerts(settings, competitor, analysis, changeRowId);
         } catch (alertErr) {
           console.error(`  ⚠️  Alert delivery failed for ${competitor.name}: ${alertErr.message}`);
-        }
-
-        // Brief-notification email. Same meaningful-change and tier gating as the
-        // Slack/Discord alerts above, so it fires exactly once per generated
-        // brief. Recipient rule: the configured notification_email if set,
-        // otherwise the account email. Gated on the brief_email_enabled
-        // preference (default ON). Best effort: sendBriefEmail never throws and
-        // logs failures itself, but the lookup is wrapped so nothing here can
-        // disrupt the pipeline. No email address or brief content is logged.
-        if (settings.brief_email_enabled !== 0) {
-          try {
-            const account = db.prepare('SELECT email FROM users WHERE id = ?').get(competitor.user_id);
-            const recipient = settings.notification_email || account?.email;
-            if (recipient) {
-              await sendBriefEmail(recipient, { competitor, analysis, changeId: changeRowId });
-            }
-          } catch (emailErr) {
-            console.error('[EMAIL_DELIVERY_FAILED]', { error: emailErr.message, purpose: 'brief_notification' });
-          }
         }
 
         // Phase 9: forward-looking pattern alerts. If the user subscribed to
@@ -295,15 +308,100 @@ async function checkCompetitor(competitor, db) {
   return { ok: true, status: finalStatus, changed: !!hashChanged, changeRowId };
 }
 
+// ── Day-1 baseline brief ───────────────────────────────────────────────────────
+// Called from checkCompetitor on the first-ever check of a competitor when the
+// caller opted in (the add route). Generates an AI brief on the CURRENT state
+// of the page (no diff exists yet), persists it as the first timeline row, and
+// emails it (brief_email_enabled, not tier-gated). Webhook/pattern alerts and
+// playbooks are intentionally skipped: nothing changed, so nothing to alert on.
+async function runBaselineBrief(competitor, db, content, hash) {
+  console.log(`  🌱 Baseline brief: ${competitor.name}`);
+  let analysis, analysisStatus = 'ok', analysisError = null;
+  let aiInputTokens = null, aiOutputTokens = null;
+
+  // Same user-context enrichment (and the same degradation rule) as a change
+  // brief: a context failure must never block the baseline.
+  let userContextText = '';
+  let contextUsed = 0;
+  try {
+    const userCtx = getUserContext(competitor.user_id);
+    if (hasMeaningfulContext(userCtx)) {
+      userContextText = formatContextForPrompt(userCtx);
+      contextUsed = 1;
+    }
+  } catch (_) { /* degrade to generic */ }
+
+  try {
+    const result = await analyzeBaseline(competitor, content, userContextText);
+    analysis = result.analysis;
+    if (result.usage) {
+      aiInputTokens  = result.usage.input_tokens;
+      aiOutputTokens = result.usage.output_tokens;
+      console.log(`  💰 Baseline AI usage: in=${aiInputTokens} out=${aiOutputTokens} ≈$${estimateCostUsd(result.usage).toFixed(4)}`);
+    }
+    if (!process.env.ANTHROPIC_API_KEY) analysisStatus = 'no_ai_key';
+  } catch (aiErr) {
+    console.error(`  ⚠️  Baseline analysis failed (${aiErr.code || 'ai_error'}) for ${competitor.name}: ${aiErr.message}`);
+    analysis = buildBaselineFallback(competitor, content);
+    analysisStatus = aiErr.code || 'ai_error';
+    analysisError  = String(aiErr.message || aiErr).slice(0, 500);
+  }
+
+  const insertResult = db.prepare(`
+    INSERT INTO changes (competitor_id, content_before, content_after, diff_summary, analysis, threat_level, recommended_response, talking_points, headline, analysis_status, analysis_error, is_meaningful, gate_category, gate_reason, ai_input_tokens, ai_output_tokens, pattern_tags, historical_context, context_used)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    competitor.id,
+    null,                                   // no prior state: this IS the baseline
+    JSON.stringify(content),
+    JSON.stringify({ baseline: true }),
+    JSON.stringify(analysis),
+    analysis.threat_level,
+    analysis.recommended_response,
+    JSON.stringify(analysis.talking_points || []),
+    analysis.headline,
+    analysisStatus === 'ok' ? 'ok' : 'failed',
+    analysisError,
+    1,
+    'baseline',
+    'first snapshot of a newly added competitor',
+    aiInputTokens,
+    aiOutputTokens,
+    null,
+    null,
+    contextUsed,
+  );
+  const changeRowId = insertResult.lastInsertRowid;
+  invalidateCompetitorHistory(competitor.id);
+
+  // Email the baseline brief (brief_email_enabled only; not tier-gated).
+  try {
+    const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(competitor.user_id);
+    if ((!settings || settings.brief_email_enabled !== 0)) {
+      const account = db.prepare('SELECT email FROM users WHERE id = ?').get(competitor.user_id);
+      const recipient = settings?.notification_email || account?.email;
+      if (recipient) await sendBriefEmail(recipient, { competitor, analysis, changeId: changeRowId });
+    }
+  } catch (emailErr) {
+    console.error('[EMAIL_DELIVERY_FAILED]', { error: emailErr.message, purpose: 'baseline_brief' });
+  }
+
+  db.prepare(`UPDATE competitors SET last_content_hash = ?, last_check_status = 'ok', last_check_error = NULL, last_check_at = CURRENT_TIMESTAMP WHERE id = ?`)
+    .run(hash, competitor.id);
+
+  return { ok: true, status: 'ok', changed: false, baseline: true, changeRowId };
+}
+
 async function runScheduledChecks() {
   const db = getDb();
   // Phase 10: daily monitoring is a Pro feature, gated by the workspace's
   // EFFECTIVE tier (honours cancellation grace periods). Free workspaces are
-  // excluded — the scheduler never runs for them.
+  // excluded — the scheduler never runs for them. Archived competitors (trial
+  // expiry keeps them read-only above the Free cap) are never checked.
   const active = db.prepare(`
     SELECT c.* FROM competitors c
     JOIN workspaces w ON w.id = c.workspace_id
-    WHERE c.active = 1
+    WHERE c.active = 1 AND COALESCE(c.archived, 0) = 0
   `).all();
   const competitors = active.filter(c => canWorkspaceAccess(c.workspace_id, 'daily_monitoring'));
 
@@ -326,6 +424,78 @@ async function runScheduledChecks() {
   }
 
   console.log('✅ Scheduled check complete\n');
+}
+
+// ── Trial lifecycle sweep ──────────────────────────────────────────────────────
+// Runs daily. For every workspace on the trial overlay (trial_ends_at set, no
+// paid subscription) it sends the day-10 and day-13 reminder emails and, on
+// expiry, the "account still active" notice plus the Free-limit archive.
+// Reminder markers are recorded in workspaces.trial_notices (JSON array) so a
+// sweep is idempotent: each notice fires exactly once per workspace.
+//
+// Expiry never locks anything. Tier gating already fell back to Free the moment
+// trial_ends_at passed (see getWorkspaceTier); this sweep only handles the
+// side effects: archive competitors above the Free page limit (read-only,
+// restored on upgrade, never deleted) and send the expiry email.
+async function runTrialSweep() {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT w.*, u.email AS owner_email
+    FROM workspaces w
+    JOIN users u ON u.id = w.owner_user_id
+    WHERE w.trial_ends_at IS NOT NULL
+      AND w.subscription_id IS NULL
+      AND w.subscription_tier = 'free'
+  `).all();
+  if (!rows.length) return;
+
+  for (const ws of rows) {
+    let notices;
+    try { notices = JSON.parse(ws.trial_notices || '[]'); } catch (_) { notices = []; }
+    if (!Array.isArray(notices)) notices = [];
+    if (notices.includes('expiry')) continue; // lifecycle complete
+
+    const info = getTrialInfo(ws);
+    const daysLeft = info.daysLeft ?? 0;
+    const send = async (variant) => {
+      try {
+        await sendTrialEmail(ws.owner_email, { variant, daysLeft });
+        notices.push(variant);
+        db.prepare('UPDATE workspaces SET trial_notices = ? WHERE id = ?').run(JSON.stringify(notices), ws.id);
+        console.log(`⏳ Trial ${variant} notice sent (workspace ${ws.id}, ${daysLeft} day(s) left)`);
+      } catch (err) {
+        console.error('[EMAIL_DELIVERY_FAILED]', { error: err.message, purpose: `trial_${variant}` });
+      }
+    };
+
+    if (!info.onTrial) {
+      // Expired: archive above the Free limit, then notify. Archive first so
+      // the email's "what you keep" statement is already true when it lands.
+      try { archiveOverFreeLimit(db, ws.id); }
+      catch (err) { console.error(`[trial] archive failed for workspace ${ws.id}:`, err.message); }
+      await send('expiry');
+    } else if (daysLeft <= TRIAL_REMINDER_DAYS_LEFT.day13 && !notices.includes('day13')) {
+      await send('day13');
+    } else if (daysLeft <= TRIAL_REMINDER_DAYS_LEFT.day10 && !notices.includes('day10')) {
+      await send('day10');
+    }
+  }
+}
+
+// Free keeps 1 competitor page: the oldest stays live, everything else is
+// archived (read-only, excluded from monitoring and page counts). Nothing is
+// deleted; the add route and the competitors list restore archived rows the
+// moment the workspace is entitled again.
+function archiveOverFreeLimit(db, workspaceId) {
+  const keep = db.prepare(
+    'SELECT id FROM competitors WHERE workspace_id = ? AND COALESCE(archived, 0) = 0 ORDER BY id ASC LIMIT 1'
+  ).get(workspaceId);
+  if (!keep) return 0;
+  const r = db.prepare(
+    'UPDATE competitors SET archived = 1 WHERE workspace_id = ? AND COALESCE(archived, 0) = 0 AND id != ?'
+  ).run(workspaceId, keep.id);
+  if (r.changes > 0) console.log(`📦 Archived ${r.changes} competitor page(s) over the Free limit (workspace ${workspaceId})`);
+  return r.changes;
 }
 
 function startScheduler() {
@@ -361,6 +531,13 @@ function startScheduler() {
   });
   console.log('⏰ Phase 9 nightly win/loss correlation scheduled (2:30 AM)');
 
+  // Trial lifecycle: reminders (day 10, day 13) and expiry handling, daily at
+  // 8:00 AM so the expiry email lands before the day's scheduled checks run.
+  cron.schedule('0 8 * * *', () => {
+    runTrialSweep().catch(err => console.error('[trial] sweep error:', err.message));
+  });
+  console.log('⏰ Trial lifecycle sweep scheduled (8:00 AM)');
+
   console.log('⏰ Scheduler started — daily checks at 9:00 AM');
 }
 
@@ -383,4 +560,7 @@ function buildTrivialAnalysis(competitor, gate) {
   };
 }
 
-module.exports = { startScheduler, checkCompetitor, runScheduledChecks, fetchErrorToStatus, buildTrivialAnalysis };
+module.exports = {
+  startScheduler, checkCompetitor, runScheduledChecks, fetchErrorToStatus, buildTrivialAnalysis,
+  runTrialSweep, archiveOverFreeLimit,
+};
