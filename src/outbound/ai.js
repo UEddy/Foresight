@@ -59,8 +59,13 @@ function extractJson(text) {
 // Ask the model for strict JSON and parse it. Retries once (with a terser
 // reminder) on a parse failure. Returns the parsed value, or null if both
 // attempts fail. Never throws.
-async function structuredCall({ system, user, maxTokens = 2000 }) {
-  if (!hasKey()) return null;
+//
+// wantRaw: return { parsed, raw } instead, where raw is the model's literal
+// text output (last attempt). Used by diagnostics to show WHAT the model said
+// when it produced no usable JSON or an empty result. Default callers are
+// unaffected.
+async function structuredCall({ system, user, maxTokens = 2000, wantRaw = false }) {
+  if (!hasKey()) return wantRaw ? { parsed: null, raw: null } : null;
   const attempt = async (extra) => {
     const resp = await withRetry(() => getClient().messages.create({
       model: MODEL,
@@ -69,15 +74,16 @@ async function structuredCall({ system, user, maxTokens = 2000 }) {
       messages: [{ role: 'user', content: extra ? `${user}\n\n${extra}` : user }],
     }), { label: 'anthropic structuredCall' });
     const text = resp?.content?.map(b => b.text || '').join('') || '';
-    return extractJson(text);
+    return { text, parsed: extractJson(text) };
   };
   try {
     const first = await attempt();
-    if (first != null) return first;
-    return await attempt('Respond with valid JSON only. No prose, no code fences.');
+    if (first.parsed != null) return wantRaw ? { parsed: first.parsed, raw: first.text } : first.parsed;
+    const second = await attempt('Respond with valid JSON only. No prose, no code fences.');
+    return wantRaw ? { parsed: second.parsed, raw: second.text } : second.parsed;
   } catch (err) {
     console.warn('[outbound.ai] structuredCall failed:', err?.message || err);
-    return null;
+    return wantRaw ? { parsed: null, raw: null } : null;
   }
 }
 

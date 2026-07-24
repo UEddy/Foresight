@@ -86,9 +86,13 @@ class SearchFirstProvider {
     }
   }
 
-  // One Serper web search. Returns a compact array of { title, link, snippet }.
-  // A 429 is retried with backoff (1s, 2s, 4s) before we give up on the query.
-  async search(query, { num = 10, gl } = {}) {
+  // One Serper web search. Returns a compact array of { title, link, snippet }
+  // on success (possibly empty when Serper genuinely found nothing), or NULL
+  // when the request itself failed, so callers can tell "no results" apart from
+  // "no response". A 429 is retried with backoff (1s, 2s, 4s) before giving up.
+  // opts.debug additionally logs the raw HTTP status and the first ~500 chars
+  // of the response body (used for the first query of a discovery run).
+  async search(query, { num = 10, gl, debug = false } = {}) {
     this.ensureConfigured();
     try {
       const body = { q: query, num };
@@ -97,15 +101,32 @@ class SearchFirstProvider {
         headers: { 'X-API-KEY': this.serperKey, 'Content-Type': 'application/json' },
         timeout: 15000,
       }), { label: 'serper search' });
+      if (debug) {
+        console.log('[outbound.discovery] first serper response: status=' + resp.status
+          + ' body=' + JSON.stringify(resp.data).slice(0, 500));
+      }
       const organic = Array.isArray(resp.data?.organic) ? resp.data.organic : [];
+      if (!organic.length) {
+        // A 200 with no organic results is worth seeing: it distinguishes
+        // "Serper answered but found nothing" from a request failure.
+        console.warn('[outbound.provider] serper returned 0 organic results for', JSON.stringify(query));
+      }
       return organic.map(r => ({ title: r.title || '', link: r.link || '', snippet: r.snippet || '' }));
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         throw new OutboundConfigError('Serper rejected the API key (check SERPER_API_KEY).');
       }
-      // Transient search failure: return nothing rather than killing the run.
-      console.warn('[outbound.provider] search failed for', JSON.stringify(query), '-', err?.message || err);
-      return [];
+      // Request-level failure (429 after retries, 400, quota exhaustion,
+      // network error). Log the real status and body so the failure is never
+      // silent, and return null so the caller can count it as failed rather
+      // than as an empty result.
+      const status = err.response?.status ?? 'no-response';
+      const bodySlice = err.response?.data !== undefined
+        ? JSON.stringify(err.response.data).slice(0, 500)
+        : String(err?.message || err).slice(0, 500);
+      console.error('[outbound.provider] search FAILED for ' + JSON.stringify(query)
+        + ' status=' + status + ' body=' + bodySlice);
+      return null;
     }
   }
 
@@ -122,24 +143,45 @@ class SearchFirstProvider {
     // 1) Ask the model to expand the brief into concrete ICP/pain search queries.
     const queries = await this.buildQueries(brief, regionHints);
 
+    // Diagnostic: state the search budget and the EXACT queries before any is
+    // sent, so a zero-candidate run is attributable at a glance. If the
+    // intended count is ever 0 the bug is in the budget math, not in Serper.
+    console.log('[outbound.discovery] budget: poolSize=' + poolSize
+      + ' maxSearches=' + MAX_SEARCHES_PER_RUN + ' intendedQueries=' + queries.length);
+    console.log('[outbound.discovery] queries: ' + JSON.stringify(queries));
+    if (!queries.length) {
+      console.error('[outbound.discovery] BUG: zero intended queries; buildQueries returned an empty list');
+      return [];
+    }
+
     // 2) Run the searches and aggregate results (deduped by link). Bounded by
     //    MAX_SEARCHES_PER_RUN searches and MAX_RAW_RESULTS raw hits.
     const seen = new Set();
     const results = [];
     let searchCount = 0;
+    let failedSearches = 0;
     for (const q of queries) {
       if (searchCount >= MAX_SEARCHES_PER_RUN) break;
       if (searchCount > 0) await sleep(SEARCH_GAP_MS);
       searchCount += 1;
-      const hits = await this.search(q, { num: 10, gl });
-      for (const h of hits) {
+      // First query of the run logs its raw HTTP status and response body so a
+      // silent auth/quota/shape failure is visible in the run log.
+      const hits = await this.search(q, { num: 10, gl, debug: searchCount === 1 });
+      if (hits === null) failedSearches += 1;
+      for (const h of (hits || [])) {
         if (!h.link || seen.has(h.link)) continue;
         seen.add(h.link);
         results.push(h);
       }
       if (results.length >= MAX_RAW_RESULTS) break; // enough raw material
     }
-    if (!results.length) return [];
+    console.log('[outbound.discovery] searches sent=' + searchCount
+      + ' failed=' + failedSearches + ' rawResults=' + results.length);
+    if (!results.length) {
+      console.error('[outbound.discovery] zero raw results across ' + searchCount
+        + ' searches (' + failedSearches + ' failed). Check the first-response log above for the reason.');
+      return [];
+    }
 
     // 3) Extract structured company candidates with a real trigger + source URL.
     const system = 'You are a B2B lead researcher for Nivaria, a competitor-intelligence '
@@ -175,8 +217,17 @@ class SearchFirstProvider {
 
     // Budget enough output tokens for the larger pool so the JSON is not
     // truncated (a truncated response fails to parse and yields zero candidates).
-    const parsed = await structuredCall({ system, user, maxTokens: 8000 });
+    // wantRaw so a zero-candidate extraction can show the model's literal output.
+    const { parsed, raw } = await structuredCall({ system, user, maxTokens: 8000, wantRaw: true });
     const list = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    // Diagnostic: separates "search found nothing" (logged above) from "model
+    // extracted nothing" (logged here, with the raw output when empty).
+    console.log('[outbound.discovery] extraction: fed ' + results.length
+      + ' raw results, model returned ' + list.length + ' candidates');
+    if (!list.length) {
+      console.error('[outbound.discovery] extraction produced no candidates. Raw model output: '
+        + (raw == null ? '(null: missing ANTHROPIC_API_KEY or the call failed)' : JSON.stringify(raw.slice(0, 2000))));
+    }
     if (funnel) funnel.discovered_raw = list.length; // raw, pre-dedupe
 
     // 4) Keep only candidates whose trigger_url actually appeared in results.
@@ -245,7 +296,7 @@ class SearchFirstProvider {
     const roleTerms = (roles && roles.length ? roles : ['Founder', 'Product Marketing']).slice(0, 4);
     const q = `"${company}" (${roleTerms.map(r => `"${r}"`).join(' OR ')}) site:linkedin.com/in`;
     const hits = await this.search(q, { num: 10 });
-    if (!hits.length) { if (funnel) funnel.no_person += 1; return []; }
+    if (!hits || !hits.length) { if (funnel) funnel.no_person += 1; return []; }
 
     const system = 'From LinkedIn search results, identify the single best CURRENT contact at the '
       + 'named company for competitor-intelligence outreach, preferring the given roles. Two '
