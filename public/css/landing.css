@@ -1246,3 +1246,10 @@ a.lp-plan-cta { display: flex; align-items: center; justify-content: center; tex
 .lp-diff-card { background: var(--lp-bg-card); border: 1px solid var(--lp-border); border-radius: var(--lp-radius); padding: 24px 22px; }
 .lp-diff-name { font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; color: var(--lp-txt); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lp-diff-desc { font-size: 0.875rem; line-height: 1.55; color: var(--lp-txt-2); }
+
+/* Free-after-trial column sub-line in the comparison table header. */
+.lp-ct-subline {
+  display: block; margin-top: 4px; font-size: 0.625rem; font-weight: 500;
+  letter-spacing: 0; text-transform: none; color: var(--lp-txt-2);
+  line-height: 1.4; max-width: 180px;
+}
