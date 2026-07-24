@@ -30,6 +30,7 @@ const { handleLemonSqueezyWebhook } = require('./lemonSqueezyWebhook');
 const { getUserCurrentWorkspace } = require('./lib/workspace');
 // Phase 11C — public legal pages (Privacy / Terms / Cookies).
 const { registerLegalRoutes } = require('./routes/legal');
+const { registerContentRoutes, register404 } = require('./routes/content');
 // Phase 12 — developer-only admin views (waitlist), gated by ADMIN_EMAILS.
 const { registerAdminRoutes } = require('./routes/admin');
 // Outbound — admin-only lead-gen. API router + the single access gate.
@@ -335,8 +336,16 @@ registerAdminRoutes(app);
 app.get('/app',   (req, res) => res.sendFile(path.join(__dirname, '../public/app/index.html')));
 app.get('/app/*', (req, res) => res.sendFile(path.join(__dirname, '../public/app/index.html')));
 
-// Landing page fallback
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
+// ── Content pages + generated sitemap (Module 2) ───────────────────────────────
+// Markdown-driven /for, /blog, /glossary, /alternatives, /compare pages. MUST be
+// registered here: after the specific routes above (so /app, /login, legal and
+// admin win) and before the 404 handler. The homepage catch-all that used to
+// live here served /for/sales-teams as the homepage (a soft 404 to search
+// engines); it is gone. The landing page is served by express.static at '/'.
+registerContentRoutes(app);
+
+// Real 404 for every genuinely unmatched path (replaces the homepage catch-all).
+register404(app);
 
 // ── Production error handler ───────────────────────────────────────────────────
 
