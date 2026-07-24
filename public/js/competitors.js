@@ -536,15 +536,51 @@ const Competitors = {
     }
   },
 
+  // Pause / resume a single page. Updates the row in place (status pill + button)
+  // instead of re-rendering the whole list, so the change is instant with no
+  // page-wide reflow or refresh flicker. Optimistic: the UI flips immediately,
+  // reconciles with the server's authoritative value, and reverts on error.
   async toggle(id, btn) {
+    const c = Competitors._findPage(id);
+    const row = btn.closest('tr');
+    const prev = c ? (c.active ? 1 : 0) : (btn.title === 'Pause' ? 1 : 0);
+    const next = prev ? 0 : 1;
+
+    Competitors._applyRowActive(row, btn, c, next);
     btn.disabled = true;
     try {
-      await API.toggleCompetitor(id);
-      Competitors.render();
+      const res = await API.toggleCompetitor(id);
+      const server = res && typeof res.active === 'boolean' ? (res.active ? 1 : 0) : next;
+      if (server !== next) Competitors._applyRowActive(row, btn, c, server);
     } catch (e) {
+      Competitors._applyRowActive(row, btn, c, prev); // revert
       toast(e.message, 'error');
+    } finally {
       btn.disabled = false;
     }
+  },
+
+  // Find one page (competitor row) across the cached groups by id.
+  _findPage(id) {
+    for (const g of Competitors._groups) {
+      const p = g.pages.find(x => x.id === id);
+      if (p) return p;
+    }
+    return null;
+  },
+
+  // Reflect an active/paused state on a single row: refresh the status pill from
+  // the (mutated) competitor object and swap the pause/resume button glyph.
+  _applyRowActive(row, btn, c, active) {
+    if (c) c.active = active;
+    if (row && c) {
+      const cell = row.querySelector('[data-label="Status"]');
+      if (cell) cell.innerHTML = Competitors.statusPill(c);
+    }
+    btn.title = active ? 'Pause' : 'Resume';
+    btn.innerHTML = active
+      ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`
+      : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
   },
 
   async remove(id, label) {
