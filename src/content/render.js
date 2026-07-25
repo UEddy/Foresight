@@ -24,6 +24,19 @@ function escapeAttr(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Decode the handful of HTML entities `marked` emits in its rendered output, so
+// text extracted FROM that HTML (the TOC heading labels) holds real characters
+// again. Without this the extracted "don&#39;t" would be escaped a second time
+// by escapeHtml into "don&amp;#39;t", which a browser shows as the literal
+// "don&#39;t". Decode &amp; last so an already-escaped "&amp;#39;" is not turned
+// into an apostrophe. Only used for plain-text extraction, never on markup.
+function decodeEntities(s) {
+  return String(s == null ? '' : s)
+    .replace(/&#0*39;/g, "'").replace(/&#x0*27;/gi, "'").replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 // Slug for a heading id derived from its text. Lowercase, alphanumerics only,
 // hyphen-joined.
 function slugify(s) {
@@ -46,7 +59,7 @@ function renderBody(markdown) {
     let cleanInner = inner;
     const idMatch = inner.match(/\s*\{#([a-zA-Z0-9_-]+)\}\s*$/);
     if (idMatch) { explicitId = idMatch[1]; cleanInner = inner.slice(0, idMatch.index); }
-    const plain = cleanInner.replace(/<[^>]*>/g, '').trim();
+    const plain = decodeEntities(cleanInner.replace(/<[^>]*>/g, '').trim());
     const id = explicitId || slugify(plain);
     if (tag === 'h2') toc.push({ id, text: plain });
     return `<${tag} id="${escapeAttr(id)}">${cleanInner.trim()}</${tag}>`;
