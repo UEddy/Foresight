@@ -15,7 +15,7 @@ faqs:
   - q: "How many competitor pages should a small team monitor?"
     a: "Most small teams land between 10 and 20 pages: for each of three to five direct competitors, their pricing page, homepage, and main product or changelog page."
   - q: "Can I just use Google Alerts?"
-    a: "Google Alerts catches news mentions and press coverage well, and it's free. It won't detect silent changes to a competitor's pricing page, which is usually the change that matters most in a live deal."
+    a: "Google Alerts catches news mentions and press coverage well, and it's free. It won't detect silent changes to a competitor's pricing page, which is usually the change that matters most."
 ---
 
 ## Why don't enterprise CI platforms work for startups? {#why-enterprise-fails}
