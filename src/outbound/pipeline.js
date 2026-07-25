@@ -280,6 +280,20 @@ async function scoreCandidate(brief, company, person) {
   });
 }
 
+// Human trigger-age line for the draft user message. The draft prompt's "No
+// stale premises" rule needs the trigger's age to decide present vs past tense,
+// so it must be supplied here, not left for the model to guess. A null or
+// unparseable date is reported as unknown (never assumed current).
+function triggerAgeLine(triggerDate) {
+  const unknown = 'Trigger date: unknown (do not describe the trigger as current '
+    + 'or ongoing; do not use present tense such as "is hiring" or "just posted")';
+  if (!triggerDate) return unknown;
+  const t = Date.parse(triggerDate);
+  if (Number.isNaN(t)) return unknown;
+  const days = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  return `Trigger date: ${String(triggerDate).slice(0, 10)} (${days} days ago)`;
+}
+
 // Anthropic drafting with the outbound agent as the system prompt. Runs the
 // output through the no-dash / no-connector sanitizer before returning.
 async function draftMessage(company, person, contact) {
@@ -290,6 +304,7 @@ async function draftMessage(company, person, contact) {
     + `Category: ${company.category || 'unknown'}\n`
     + `Trigger: ${company.trigger || 'n/a'}\n`
     + `Trigger source: ${company.trigger_url || 'n/a'}\n`
+    + `${triggerAgeLine(company.trigger_date)}\n`
     + `Person: ${person?.person_name || 'unknown'} (${person?.person_title || 'unknown title'})\n`;
   const text = await draftCall({ system: getAgentPrompt(), user, maxTokens: 700 });
   if (!text) return null;
@@ -306,6 +321,7 @@ async function redraftLead(lead, { channel, angle } = {}) {
     + `Category: ${lead.category || 'unknown'}\n`
     + `Trigger: ${lead.trigger || 'n/a'}\n`
     + `Trigger source: ${lead.trigger_url || 'n/a'}\n`
+    + `${triggerAgeLine(lead.trigger_at)}\n`
     + `Person: ${lead.person_name || 'unknown'} (${lead.person_title || 'unknown title'})\n`;
   if (angle) user += `Angle to emphasize: ${String(angle).slice(0, 300)}\n`;
   const text = await draftCall({ system: getAgentPrompt(), user, maxTokens: 700 });
