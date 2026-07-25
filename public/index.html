@@ -372,6 +372,66 @@
     </div>
   </section>
 
+  <!-- ── Built for how your team sells ──────────────────────────
+       Self-selection section that cross-links to the /for/ segment
+       pages. Cards are intentionally written as static markup (not
+       rendered by JS) so crawlers see a real <a href> with keyword
+       anchor text. Two segment pages are live; the other two render
+       as muted "Coming soon" cards with NO href.
+
+       To promote a "Coming soon" card to live once its page ships:
+       change the wrapping <div class="lp-team-card lp-team-card-soon">
+       to <a class="lp-team-card" href="/for/PAGE"> (and its closing
+       </div> to </a>), then delete that card's lp-team-soon badge.
+       That is the one-line-per-card change described below. -->
+  <section class="lp-section lp-alt" id="for-team" aria-label="Built for how your team sells">
+    <div class="lp-container">
+      <div class="lp-team-header lp-animate">
+        <div class="lp-section-label">Built for your team</div>
+        <h2 class="lp-section-title">Built for how your team sells</h2>
+        <p class="lp-section-sub">Competitive intelligence looks different depending on who you are. Start where you fit.</p>
+      </div>
+
+      <div class="lp-team-grid">
+
+        <!-- LIVE: Sales teams -->
+        <a class="lp-team-card lp-animate" data-delay="1" href="/for/sales-teams">
+          <h3 class="lp-team-title">Competitive intelligence for sales teams</h3>
+          <p class="lp-team-desc">Give reps intel they will actually use, delivered where they already work.</p>
+          <span class="lp-team-cta" aria-hidden="true">
+            Explore
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </span>
+        </a>
+
+        <!-- LIVE: Startups and small teams -->
+        <a class="lp-team-card lp-animate" data-delay="2" href="/for/startups">
+          <h3 class="lp-team-title">Competitor monitoring for startups</h3>
+          <p class="lp-team-desc">Enterprise competitive intelligence without the enterprise price or setup.</p>
+          <span class="lp-team-cta" aria-hidden="true">
+            Explore
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </span>
+        </a>
+
+        <!-- COMING SOON: Agencies and consultants (no href, not clickable) -->
+        <div class="lp-team-card lp-team-card-soon lp-animate" data-delay="3" aria-disabled="true">
+          <h3 class="lp-team-title">Agencies and consultants</h3>
+          <p class="lp-team-desc">Track competitors for every client account in one place.</p>
+          <span class="lp-team-soon">Coming soon</span>
+        </div>
+
+        <!-- COMING SOON: Crypto and web3 teams (no href, not clickable) -->
+        <div class="lp-team-card lp-team-card-soon lp-animate" data-delay="4" aria-disabled="true">
+          <h3 class="lp-team-title">Crypto and web3 teams</h3>
+          <p class="lp-team-desc">Monitor rival protocols, exchanges, and L2s automatically.</p>
+          <span class="lp-team-soon">Coming soon</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <div class="lp-stripe" aria-hidden="true"></div>
 
   <!-- ── Pricing ─────────────────────────────────────────────── -->

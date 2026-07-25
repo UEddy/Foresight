@@ -748,6 +748,82 @@ img, svg { display: block; }
   .lp-forwhom-item { padding: 20px; gap: 16px; }
 }
 
+/* ── Built for how your team sells ───────────────────────── */
+.lp-team-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.lp-team-header .lp-section-sub { margin: 0 auto; }
+.lp-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+/* Single column at the same breakpoint the diff and pricing grids stack. */
+@media (max-width: 560px) {
+  .lp-team-grid { grid-template-columns: 1fr; max-width: 460px; }
+}
+.lp-team-card {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 28px 24px;
+  background: var(--lp-bg-card);
+  border: 1px solid var(--lp-border);
+  border-radius: var(--lp-radius);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+/* Live cards are anchors: lift and accent on hover, like the audience cards. */
+a.lp-team-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--lp-accent);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+}
+.lp-team-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--lp-txt);
+  margin-bottom: 10px;
+}
+.lp-team-desc {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--lp-txt-2);
+}
+.lp-team-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--lp-accent);
+}
+a.lp-team-card:hover .lp-team-cta svg { transform: translateX(3px); }
+.lp-team-cta svg { transition: transform 0.2s ease; }
+/* Coming-soon cards: present but visibly muted and non-interactive. */
+.lp-team-card-soon {
+  opacity: 0.6;
+  cursor: default;
+}
+.lp-team-soon {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: 18px;
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lp-txt-2);
+  background: var(--lp-bg-card);
+  border: 1px solid var(--lp-border);
+  border-radius: 999px;
+}
+
 /* ── Footer ──────────────────────────────────────────────── */
 .lp-footer {
   border-top: 1px solid var(--lp-border);
