@@ -374,16 +374,18 @@
 
   <!-- ── Built for how your team sells ──────────────────────────
        Self-selection section that cross-links to the /for/ segment
-       pages. Cards are intentionally written as static markup (not
-       rendered by JS) so crawlers see a real <a href> with keyword
-       anchor text. Two segment pages are live; the other two render
-       as muted "Coming soon" cards with NO href.
+       pages. Each card is intentionally static markup (not rendered by
+       JS) so crawlers see a real <a href> with keyword anchor text.
 
-       To promote a "Coming soon" card to live once its page ships:
-       change the wrapping <div class="lp-team-card lp-team-card-soon">
-       to <a class="lp-team-card" href="/for/PAGE"> (and its closing
-       </div> to </a>), then delete that card's lp-team-soon badge.
-       That is the one-line-per-card change described below. -->
+       All four segment pages are live. To add a card for a segment
+       whose page does not exist yet, render it as a muted, non-clickable
+       coming-soon card instead of an anchor (so no link 404s):
+         <div class="lp-team-card lp-team-card-soon" aria-disabled="true">
+           ... <span class="lp-team-soon">Coming soon</span>
+         </div>
+       and swap it back to <a class="lp-team-card" href="/for/PAGE"> once
+       the page ships. The lp-team-card-soon / lp-team-soon styles remain
+       in landing.css for exactly that case. -->
   <section class="lp-section lp-alt" id="for-team" aria-label="Built for how your team sells">
     <div class="lp-container">
       <div class="lp-team-header lp-animate">
@@ -414,12 +416,15 @@
           </span>
         </a>
 
-        <!-- COMING SOON: Agencies and consultants (no href, not clickable) -->
-        <div class="lp-team-card lp-team-card-soon lp-animate" data-delay="3" aria-disabled="true">
-          <h3 class="lp-team-title">Agencies and consultants</h3>
+        <!-- LIVE: Agencies and consultants -->
+        <a class="lp-team-card lp-animate" data-delay="3" href="/for/agencies">
+          <h3 class="lp-team-title">Competitor tracking for agencies</h3>
           <p class="lp-team-desc">Track competitors for every client account in one place.</p>
-          <span class="lp-team-soon">Coming soon</span>
-        </div>
+          <span class="lp-team-cta" aria-hidden="true">
+            Explore
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </span>
+        </a>
 
         <!-- LIVE: Crypto and web3 teams -->
         <a class="lp-team-card lp-animate" data-delay="4" href="/for/web3">
