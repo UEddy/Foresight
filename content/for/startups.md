@@ -50,13 +50,15 @@ In priority order: pricing pages, homepage and positioning, feature or product p
 
 ## Should you build a DIY monitoring stack instead? {#diy-stack}
 
-You can, and for a while it works. The honest version of the trade-off:
+You can totally do it yourself, and for a bit, it actually works.
 
-The typical DIY stack is Google Alerts for mentions, a page-change monitor like Visualping or Distill for pricing and feature pages, an RSS reader for blogs and changelogs, and Zapier pushing the output into Slack. Set-up cost is near zero and it genuinely catches the major moves.
+The typical DIY setup is pretty straightforward: Google Alerts for brand mentions, a basic page monitor like Visualping for pricing pages, an RSS reader for company blogs, and Zapier dumping everything into Slack. It costs almost nothing to set up, and it really will catch the big stuff.
 
-What it doesn't do is interpret. You get a notification that a page changed and a visual diff to decode. Over five competitors and four pages each, that's twenty diffs a week to read and translate, and it's exactly the kind of task that quietly stops happening around week six. As one practitioner put it, the manual approach works but gets tedious fast.
+What it doesn't actually tell you is what those changes entail as pertaining to your business. You just get a ping saying a page changed, along with a messy visual diff to figure out. Spread that across five competitors and four pages each, and suddenly you're staring at twenty messy stuffs you still have to do work on. It's boring and tedious work.
 
-The stack also has hidden maintenance: selectors break when competitors redesign, alerts drift into noise, and nobody owns fixing it. Build it if your budget is genuinely zero. Recognise that you have become the system.
+On top of that, the DIY stack breaks constantly. Competitors redesign their sites and break your scrapers, alerts turn into spam, and nobody on the team wants to fix it.
+
+If you have zero budget, build it. Just realize that you are the one doing all the heavy lifting.
 
 ## What does competitor monitoring cost? {#cost}
 
