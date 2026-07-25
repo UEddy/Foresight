@@ -22,9 +22,9 @@ faqs:
 
 Three reasons, and price is only the first.
 
-Enterprise competitive intelligence platforms are quote-gated, with public reporting placing the category leaders somewhere around $20,000 to $40,000 a year. That alone rules them out for most companies under Series A. But the second reason bites harder: these platforms assume a dedicated administrator. Someone has to curate the feed, maintain the battlecards, and drive adoption. At a ten-person company that someone is the founder, and it will be the first responsibility dropped when a quarter gets busy.
+Enterprise competitive intelligence platforms are quote-gated, with public reporting placing the category leaders somewhere around $20,000 to $40,000 a year. That alone rules them out for most companies under Series A. But the second reason bites harder: these platforms assume a dedicated administrator. Someone has to curate the feed, maintain the briefs, and drive adoption. At a ten-person company that someone is the founder, and it will be the first responsibility dropped when a quarter gets busy.
 
-The third is scope mismatch. Enterprise platforms are built to cover entire market landscapes: news, patents, hiring, financial filings, social sentiment. A startup usually wants to know when five specific competitors change their pricing or ship something. Buying a landscape tool to answer a narrow question means paying for breadth you'll never open.
+The third is scope mismatch. Enterprise platforms are built to cover entire market landscapes: news, patents, hiring, financial filings, social sentiment. A startup usually wants to know when five specific competitors change their pricing or ship something. Buying a huge toolkit for a small problem is just wasting money on features you don't need.
 
 ## How many competitors should a startup actually track? {#how-many}
 
@@ -66,7 +66,7 @@ Three bands:
 
 **$20 to $100/month:** self-serve tools, some of which add AI summarisation. Compare on cost per page monitored rather than headline price; a $19 plan covering five pages is more expensive per page than a $20 plan covering fifteen.
 
-**$20,000+/year:** enterprise platforms with battlecards, CRM integration and services. Worth it with a dedicated product marketing hire and twenty or more reps.
+**$20,000+/year:** enterprise platforms with briefs, CRM integration and services. Worth it with a dedicated product marketing hire and twenty or more reps.
 
 Nivaria sits in the middle band and does the interpretation: 15 pages monitored daily, AI briefs explaining what changed and what to do, delivered to Slack, Discord or email, from $20 a month. Fourteen-day trial, no credit card, no demo call.
 
