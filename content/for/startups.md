@@ -32,7 +32,7 @@ Three to ten, and closer to three at the start.
 
 Split them into two groups. Direct competitors are the companies your prospects actually name on calls. These are the ones worth daily monitoring. Aspirational competitors are the market leaders you're growing toward; watching their positioning is useful for strategy but rarely urgent.
 
-The common mistake is tracking twenty companies because the tool allows it, then reading none of the output. Monitoring volume has no value on its own; the value is in what gets read and acted on. Start with the three names that come up most often in lost deals. Add more only when you're consistently doing something with what you already receive.
+The common mistake is tracking twenty companies because the tool allows it, then reading none of the output. Monitoring volume has no value on its own; the value is in what gets read and acted on. Start with the three names that come up most often. Add more only when you're consistently doing something with what you already receive.
 
 A useful test: if you can't say what you'd *do* differently when a given competitor changes something, you don't need to monitor them yet.
 
