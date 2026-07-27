@@ -248,6 +248,12 @@ const SCHEMA = `
     ai_output_tokens INTEGER,
     pattern_tags TEXT,
     historical_context TEXT,
+    -- 1 = this row is the monitoring BASELINE for the page (the first snapshot
+    -- taken when the page was added), not a detected change. Baseline rows exist
+    -- so change detection has something to diff against, and so the dashboard is
+    -- not blank on day one. They never alert, never email, and are excluded from
+    -- every change counter. threat_level is NULL on a baseline row.
+    is_baseline INTEGER DEFAULT 0,
     detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (competitor_id) REFERENCES competitors(id)
   );
@@ -719,6 +725,13 @@ async function initDb() {
   // and persist the AI's narrative on how the change fits the competitor's trajectory.
   if (!changeCols.includes('pattern_tags'))       sqlDb.run('ALTER TABLE changes ADD COLUMN pattern_tags TEXT');
   if (!changeCols.includes('historical_context')) sqlDb.run('ALTER TABLE changes ADD COLUMN historical_context TEXT');
+
+  // Silent-baseline model: mark the first snapshot of a newly monitored page so
+  // it is never counted or alerted as a change. Existing rows default to 0 and
+  // keep their current meaning, so already-monitored pages keep their history
+  // exactly as it is. Older first-snapshot briefs are deliberately NOT
+  // backfilled: relabelling live history would disrupt those accounts.
+  if (!changeCols.includes('is_baseline')) sqlDb.run('ALTER TABLE changes ADD COLUMN is_baseline INTEGER DEFAULT 0');
 
   // Phase 6: audit flag — did the AI have user business context to work from?
   // Lets us measure context coverage and surface "Analyzed for: …" in the UI.

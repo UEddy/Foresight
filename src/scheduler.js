@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { getDb } = require('./db');
 const { fetchPageContent, generateDiff, classifyScrapeError } = require('./scraper');
-const { analyzeChange, analyzeBaseline, buildBaselineFallback, buildFallbackAnalysis, estimateCostUsd } = require('./analyzer');
+const { analyzeChange, buildBaselineRecord, buildFallbackAnalysis, estimateCostUsd } = require('./analyzer');
 const { getTrialInfo } = require('./lib/trial');
 const { TRIAL_REMINDER_DAYS_LEFT } = require('./config');
 const { classifyChange } = require('./changeGate');
@@ -20,7 +20,7 @@ function fetchErrorToStatus(err, url) {
   return classifyScrapeError(err, url);
 }
 
-async function checkCompetitor(competitor, db, opts = {}) {
+async function checkCompetitor(competitor, db) {
   const renderMode = competitor.render_mode === 'js' ? 'js' : 'fetch';
   console.log(`  Checking: ${competitor.name} (${competitor.url}) [render=${renderMode}]`);
 
@@ -48,13 +48,16 @@ async function checkCompetitor(competitor, db, opts = {}) {
     return { ok: false, status, error_type, error: human };
   }
 
-  // ── BASELINE BRIEF (first check of a new competitor) ────────────────────────
-  // A fresh competitor has no last_content_hash, so the diff path below can
-  // never fire on the first check. When the caller asks for it (the add-
-  // competitor route does, so a trial signup sees real content within minutes),
-  // generate a brief on the CURRENT state of the page instead of a diff.
-  if (!competitor.last_content_hash && opts.baselineBrief) {
-    return await runBaselineBrief(competitor, db, content, hash);
+  // ── SILENT BASELINE (first check of a newly monitored page) ────────────────
+  // A page with no last_content_hash has never been captured, so nothing on it
+  // can have changed yet. Whatever it shows right now, including content that
+  // predates the user adding it, is the STARTING STATE. We record it as the
+  // baseline the next scrape diffs against, and we do NOT alert, email, or brief
+  // on it. This is unconditional: every newly added page behaves the same way,
+  // whether it came from the add route, a manual check, a page added under an
+  // existing grouped competitor, or the nightly scheduler picking it up first.
+  if (!competitor.last_content_hash) {
+    return await recordBaseline(competitor, db, content, hash);
   }
 
   // ── CHANGE DETECTION ─────────────────────────────────────────────────────────
@@ -75,8 +78,13 @@ async function checkCompetitor(competitor, db, opts = {}) {
   if (hashChanged) {
     console.log(`  ⚡ Change detected: ${competitor.name}`);
 
+    // The most recent stored snapshot is what we diff against. For a page on its
+    // second scrape that row is the silent baseline, so the very first brief a
+    // user gets describes what moved SINCE the baseline, never the content that
+    // was already sitting there when they added the page. id DESC breaks ties
+    // when two rows share a timestamp.
     const previousChange = db.prepare(
-      `SELECT content_after FROM changes WHERE competitor_id = ? ORDER BY detected_at DESC LIMIT 1`
+      `SELECT content_after FROM changes WHERE competitor_id = ? ORDER BY detected_at DESC, id DESC LIMIT 1`
     ).get(competitor.id);
 
     const before = previousChange ? JSON.parse(previousChange.content_after) : null;
@@ -308,83 +316,50 @@ async function checkCompetitor(competitor, db, opts = {}) {
   return { ok: true, status: finalStatus, changed: !!hashChanged, changeRowId };
 }
 
-// ── Day-1 baseline brief ───────────────────────────────────────────────────────
-// Called from checkCompetitor on the first-ever check of a competitor when the
-// caller opted in (the add route). Generates an AI brief on the CURRENT state
-// of the page (no diff exists yet), persists it as the first timeline row, and
-// emails it (brief_email_enabled, not tier-gated). Webhook/pattern alerts and
-// playbooks are intentionally skipped: nothing changed, so nothing to alert on.
-async function runBaselineBrief(competitor, db, content, hash) {
-  console.log(`  🌱 Baseline brief: ${competitor.name}`);
-  let analysis, analysisStatus = 'ok', analysisError = null;
-  let aiInputTokens = null, aiOutputTokens = null;
+// ── Silent baseline (first snapshot of a newly monitored page) ────────────────
+// Called from checkCompetitor on the first-ever successful fetch of a page.
+// Nothing has changed yet, so this is deliberately SILENT: no AI call, no
+// threat level, no webhook, no email, no playbooks. It does two things:
+//
+//   1. Stores the snapshot as the anchor every later diff is measured against.
+//   2. Leaves one clearly-labelled "Monitoring started, baseline captured" row
+//      so the dashboard shows that monitoring is live instead of sitting blank.
+//
+// The row is marked is_baseline = 1 and carries a NULL threat level, so every
+// change counter, threat filter, alert path, and AI history prompt skips it. It
+// records when the SNAPSHOT was taken, never a claim that the page changed.
+async function recordBaseline(competitor, db, content, hash) {
+  console.log(`  🌱 Baseline captured (no alert): ${competitor.name}`);
 
-  // Same user-context enrichment (and the same degradation rule) as a change
-  // brief: a context failure must never block the baseline.
-  let userContextText = '';
-  let contextUsed = 0;
-  try {
-    const userCtx = getUserContext(competitor.user_id);
-    if (hasMeaningfulContext(userCtx)) {
-      userContextText = formatContextForPrompt(userCtx);
-      contextUsed = 1;
-    }
-  } catch (_) { /* degrade to generic */ }
-
-  try {
-    const result = await analyzeBaseline(competitor, content, userContextText);
-    analysis = result.analysis;
-    if (result.usage) {
-      aiInputTokens  = result.usage.input_tokens;
-      aiOutputTokens = result.usage.output_tokens;
-      console.log(`  💰 Baseline AI usage: in=${aiInputTokens} out=${aiOutputTokens} ≈$${estimateCostUsd(result.usage).toFixed(4)}`);
-    }
-    if (!process.env.ANTHROPIC_API_KEY) analysisStatus = 'no_ai_key';
-  } catch (aiErr) {
-    console.error(`  ⚠️  Baseline analysis failed (${aiErr.code || 'ai_error'}) for ${competitor.name}: ${aiErr.message}`);
-    analysis = buildBaselineFallback(competitor, content);
-    analysisStatus = aiErr.code || 'ai_error';
-    analysisError  = String(aiErr.message || aiErr).slice(0, 500);
-  }
+  const analysis = buildBaselineRecord(competitor, content);
 
   const insertResult = db.prepare(`
-    INSERT INTO changes (competitor_id, content_before, content_after, diff_summary, analysis, threat_level, recommended_response, talking_points, headline, analysis_status, analysis_error, is_meaningful, gate_category, gate_reason, ai_input_tokens, ai_output_tokens, pattern_tags, historical_context, context_used)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO changes (competitor_id, content_before, content_after, diff_summary, analysis, threat_level, recommended_response, talking_points, headline, analysis_status, analysis_error, is_meaningful, is_baseline, gate_category, gate_reason, ai_input_tokens, ai_output_tokens, pattern_tags, historical_context, context_used)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     competitor.id,
     null,                                   // no prior state: this IS the baseline
-    JSON.stringify(content),
+    JSON.stringify(content),                // the anchor the next scrape diffs against
     JSON.stringify({ baseline: true }),
     JSON.stringify(analysis),
-    analysis.threat_level,
+    null,                                   // no threat level: a baseline is not a threat
     analysis.recommended_response,
-    JSON.stringify(analysis.talking_points || []),
+    JSON.stringify([]),
     analysis.headline,
-    analysisStatus === 'ok' ? 'ok' : 'failed',
-    analysisError,
-    1,
+    'ok',
+    null,
+    1,                                      // visible, so the dashboard is not blank
+    1,                                      // is_baseline: never counted or alerted as a change
     'baseline',
-    'first snapshot of a newly added competitor',
-    aiInputTokens,
-    aiOutputTokens,
+    'first snapshot of a newly monitored page, not a change',
     null,
     null,
-    contextUsed,
+    null,
+    null,
+    0,
   );
   const changeRowId = insertResult.lastInsertRowid;
   invalidateCompetitorHistory(competitor.id);
-
-  // Email the baseline brief (brief_email_enabled only; not tier-gated).
-  try {
-    const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(competitor.user_id);
-    if ((!settings || settings.brief_email_enabled !== 0)) {
-      const account = db.prepare('SELECT email FROM users WHERE id = ?').get(competitor.user_id);
-      const recipient = settings?.notification_email || account?.email;
-      if (recipient) await sendBriefEmail(recipient, { competitor, analysis, changeId: changeRowId });
-    }
-  } catch (emailErr) {
-    console.error('[EMAIL_DELIVERY_FAILED]', { error: emailErr.message, purpose: 'baseline_brief' });
-  }
 
   db.prepare(`UPDATE competitors SET last_content_hash = ?, last_check_status = 'ok', last_check_error = NULL, last_check_at = CURRENT_TIMESTAMP WHERE id = ?`)
     .run(hash, competitor.id);

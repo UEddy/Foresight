@@ -38,7 +38,11 @@ const CompetitorDetail = {
 
   html(comp, hist, pat, meetingsData) {
     const callouts = pat.callouts || [];
-    const changes = hist.changes || [];
+    // hist.changes includes the monitoring baseline as its starting point.
+    // `changes` is what actually changed; the baseline is rendered separately
+    // and never counted as one.
+    const entries = hist.changes || [];
+    const changes = entries.filter(c => !c.is_baseline);
     const meetings = meetingsData?.meetings || [];
 
     return `
@@ -98,10 +102,19 @@ const CompetitorDetail = {
             <span class="text-muted text-sm" style="margin-left:auto">${changes.length} change${changes.length === 1 ? '' : 's'}</span>
           </div>
 
-          ${changes.length === 0
+          ${changes.length === 0 && entries.length === 0
             ? `<div class="empty-desc" style="padding:16px 4px">No changes detected for this competitor in the last ${hist.days} days. The next scheduled check runs daily at 9 AM.</div>`
             : `<ul class="cd-feed">
-                ${changes.map(c => `
+                ${entries.map(c => (c.is_baseline
+                  ? `
+                  <li class="cd-feed-item cd-feed-item--baseline" onclick="navigate('/history/${c.id}')">
+                    <div class="cd-feed-row">
+                      <span class="cd-feed-date">${esc(formatShortDate(c.detected_at))}</span>
+                      <span class="badge badge-baseline">BASELINE</span>
+                      <span class="cd-feed-headline">Monitoring started, baseline captured. Changes are measured from here.</span>
+                    </div>
+                  </li>`
+                  : `
                   <li class="cd-feed-item threat-${esc(c.threat_level)}" onclick="navigate('/history/${c.id}')">
                     <div class="cd-feed-row">
                       <span class="cd-feed-date">${esc(formatShortDate(c.detected_at))}</span>
@@ -112,9 +125,11 @@ const CompetitorDetail = {
                       <div class="cd-feed-tags">
                         ${c.pattern_tags.map(t => `<span class="pattern-tag pattern-tag-sm">${esc(t.replace(/_/g, ' '))}</span>`).join('')}
                       </div>` : ''}
-                  </li>
-                `).join('')}
-              </ul>`
+                  </li>`)).join('')}
+              </ul>
+              ${changes.length === 0
+                ? `<div class="empty-desc" style="padding:12px 4px">No changes yet against this baseline. The next scheduled check runs daily at 9 AM.</div>`
+                : ''}`
           }
         </div>
       </div>

@@ -23,8 +23,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const CACHE_MAX_ENTRIES = 500;
 const cache = new Map(); // key: `${userId}:${competitorId}:${days}:${maxRows}` -> { value, expiresAt }
 
-function cacheKey(competitorId, userId, days, maxRows) {
-  return `${userId}:${competitorId}:${days}:${maxRows}`;
+function cacheKey(competitorId, userId, days, maxRows, includeBaseline) {
+  return `${userId}:${competitorId}:${days}:${maxRows}:${includeBaseline ? 'b1' : 'b0'}`;
 }
 
 function cacheGet(key) {
@@ -65,8 +65,13 @@ function invalidateCompetitorHistory(competitorId) {
  * Fetch up to `maxRows` of a competitor's most recent changes within the last
  * `days` days, scoped to the requesting user.
  *
+ * The monitoring baseline (the first snapshot of a newly added page) is NOT a
+ * change and is excluded by default, so it never reaches an AI prompt as prior
+ * history and never feeds pattern detection. Pass `includeBaseline: true` for
+ * the timeline view, which shows it as the labelled starting point.
+ *
  * Returns { changes, count, truncated, formatted } where:
- *   - changes: array of { id, detected_at, threat_level, pattern_tags, summary, is_meaningful }
+ *   - changes: array of { id, detected_at, threat_level, pattern_tags, summary, is_meaningful, is_baseline }
  *   - count: number of rows returned
  *   - truncated: true if more rows existed than maxRows allowed
  *   - formatted: compact multi-line string ready to drop into an AI prompt
@@ -82,6 +87,7 @@ function getCompetitorHistory(competitorId, options = {}) {
     DEFAULT_MAX_ROWS,
   );
   const userId = options.userId;
+  const includeBaseline = options.includeBaseline === true;
 
   if (!Number.isInteger(competitorId)) {
     throw new Error('getCompetitorHistory: competitorId must be an integer');
@@ -90,7 +96,7 @@ function getCompetitorHistory(competitorId, options = {}) {
     throw new Error('getCompetitorHistory: userId must be an integer (required for tenant scoping)');
   }
 
-  const key = cacheKey(competitorId, userId, days, maxRows);
+  const key = cacheKey(competitorId, userId, days, maxRows, includeBaseline);
   const cached = cacheGet(key);
   if (cached) return { ...cached, cacheHit: true };
 
@@ -98,15 +104,17 @@ function getCompetitorHistory(competitorId, options = {}) {
 
   // user_id is enforced in the WHERE — even if competitorId is wrong, no rows
   // for another user will leak.
+  const baselineClause = includeBaseline ? '' : 'AND COALESCE(ch.is_baseline, 0) = 0';
   const rows = db.prepare(`
     SELECT ch.id, ch.detected_at, ch.threat_level, ch.pattern_tags,
-           ch.headline, ch.analysis, ch.is_meaningful, ch.gate_category
+           ch.headline, ch.analysis, ch.is_meaningful, ch.is_baseline, ch.gate_category
     FROM changes ch
     JOIN competitors c ON ch.competitor_id = c.id
     WHERE ch.competitor_id = ?
       AND c.user_id = ?
       AND ch.detected_at >= datetime('now', ?)
       AND (ch.is_meaningful IS NULL OR ch.is_meaningful = 1)
+      ${baselineClause}
     ORDER BY ch.detected_at DESC
     LIMIT ?
   `).all(competitorId, userId, `-${days} days`, maxRows + 1); // +1 to detect truncation
@@ -131,21 +139,27 @@ function getCompetitorHistory(competitorId, options = {}) {
       } catch (_) { /* fall through to headline */ }
     }
 
+    const isBaseline = r.is_baseline === 1;
+
     return {
       id: r.id,
       detected_at: r.detected_at,
-      threat_level: r.threat_level || 'low',
-      pattern_tags: tags,
+      // A baseline carries no threat level, and must not be defaulted into one.
+      threat_level: isBaseline ? null : (r.threat_level || 'low'),
+      pattern_tags: isBaseline ? [] : tags,
       summary: truncateSummary(summary, 220),
       is_meaningful: r.is_meaningful ?? 1,
+      is_baseline: isBaseline,
     };
   });
 
   const result = {
     changes,
-    count: changes.length,
+    // count is the number of CHANGES: a baseline row, when included for the
+    // timeline, is the starting point rather than something that happened.
+    count: changes.filter(c => !c.is_baseline).length,
     truncated,
-    formatted: formatHistoryForPrompt(changes),
+    formatted: formatHistoryForPrompt(changes.filter(c => !c.is_baseline)),
     cacheHit: false,
   };
 
@@ -188,8 +202,12 @@ function formatHistoryForPrompt(changes) {
  *     in 3 of the most-recent 5 changes → trend callout
  *   - >= 3 high-threat changes in window → severity callout
  */
-function generatePatternCallouts(changes) {
-  if (!Array.isArray(changes) || changes.length === 0) return [];
+function generatePatternCallouts(input) {
+  if (!Array.isArray(input) || input.length === 0) return [];
+  // A baseline is the starting point, not a move the competitor made, so it can
+  // never contribute to a pattern.
+  const changes = input.filter(c => !c.is_baseline);
+  if (changes.length === 0) return [];
 
   const tagCounts = {};
   for (const c of changes) {

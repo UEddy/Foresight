@@ -72,6 +72,7 @@ const History = {
 
   changeCard(c) {
     const analysis = c.analysis || {};
+    if (c.is_baseline === 1) return History.baselineCard(c, analysis);
     return `
       <div class="change-card" onclick="navigate('/history/${c.id}')">
         <div class="change-threat-stripe ${c.threat_level || 'low'}"></div>
@@ -99,6 +100,45 @@ const History = {
               Open Page
             </a>
             <span class="text-muted text-sm" style="margin-left:auto">${formatDate(c.detected_at)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // The monitoring baseline: the first snapshot of a page, shown so a new
+  // account is not staring at an empty feed. It is deliberately styled apart
+  // from a change card, carries no threat badge, and its date is described as
+  // when the SNAPSHOT was taken. Nothing on the page changed at that moment.
+  baselineCard(c, analysis) {
+    return `
+      <div class="change-card change-card--baseline" onclick="navigate('/history/${c.id}')">
+        <div class="change-threat-stripe baseline"></div>
+        <div class="change-main">
+          <div class="change-top">
+            <div class="change-comp">
+              ${avatarHtml(c.competitor_name, 26)}
+              <span>${esc(c.competitor_name)}</span>
+            </div>
+            <span class="badge badge-baseline">BASELINE</span>
+            <span class="change-date">Snapshot taken ${formatShortDate(c.detected_at)}</span>
+          </div>
+          <div class="change-headline">Monitoring started, baseline captured</div>
+          <div class="change-summary">
+            ${analysis.summary
+              ? `${esc(analysis.summary.substring(0, 180))}${analysis.summary.length > 180 ? '…' : ''}`
+              : 'This page as it stands now. Nothing has changed yet: briefs start when it differs from this snapshot.'}
+          </div>
+          <div class="change-actions">
+            <a href="#/history/${c.id}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">
+              View Baseline
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+            <a href="${esc(c.competitor_url)}" target="_blank" class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open Page
+            </a>
+            <span class="text-muted text-sm" style="margin-left:auto">Monitoring is live</span>
           </div>
         </div>
       </div>

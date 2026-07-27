@@ -27,8 +27,100 @@ const BattleCard = {
     }
   },
 
+  // Initial baseline view. Deliberately NOT a battle card: no threat level, no
+  // talking points, no outreach. It states what was captured and when the
+  // SNAPSHOT was taken, and says plainly that none of it is a change. Anything
+  // on the page may well predate monitoring, so nothing here is dated as new.
+  baselineHtml(c, a) {
+    let snap = {};
+    try { snap = c.content_after ? JSON.parse(c.content_after) : {}; } catch (_) { snap = {}; }
+    const headings = Array.isArray(snap.headings) ? snap.headings.filter(Boolean).slice(0, 8) : [];
+    const hasPricing  = Boolean((snap.pricing  || '').trim());
+    const hasFeatures = Boolean((snap.features || '').trim());
+
+    return `
+      <div class="bc-wrap bc-wrap--baseline">
+
+        <div class="bc-header">
+          <div class="bc-left">
+            ${avatarHtml(c.competitor_name, 52)}
+            <div>
+              <div class="bc-comp-name">${esc(c.competitor_name)}</div>
+              <a href="${esc(c.competitor_url)}" target="_blank" class="bc-comp-url">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                ${esc(c.competitor_url.replace(/^https?:\/\//, '').substring(0, 50))}
+              </a>
+            </div>
+          </div>
+          <div class="bc-threat bc-threat--baseline">
+            <div class="bc-threat-label">INITIAL BASELINE</div>
+            <div class="bc-threat-date">Snapshot taken ${formatDate(c.detected_at)}</div>
+          </div>
+        </div>
+
+        <div class="bc-headline-wrap">
+          <h2 class="bc-headline">Monitoring started, baseline captured</h2>
+          <div class="bc-headline-actions">
+            <span class="badge badge-baseline">BASELINE</span>
+          </div>
+        </div>
+
+        <div class="bc-section bc-summary">
+          <div class="bc-section-label">What this is</div>
+          <div class="bc-section-body">
+            ${esc(a.summary || `Baseline snapshot of ${c.competitor_url} recorded. This is the page as it stands now, not a change.`)}
+          </div>
+          <div class="bc-reasoning">
+            <strong>Not a change:</strong> everything captured here was already on the page when you
+            started monitoring it, whenever it was published. Nothing here happened today. You get a
+            brief the next time this page differs from this snapshot.
+          </div>
+        </div>
+
+        <div class="bc-section bc-full">
+          <div class="bc-section-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+            Current state at baseline
+          </div>
+          ${snap.title ? `<div class="bc-section-body"><strong>Page title:</strong> ${esc(String(snap.title).slice(0, 160))}</div>` : ''}
+          ${snap.metaDescription ? `<div class="bc-section-body">${esc(String(snap.metaDescription).slice(0, 300))}</div>` : ''}
+          ${headings.length > 0 ? `
+            <ul class="talking-points">
+              ${headings.map(h => `
+                <li class="talking-point">
+                  <span class="talking-point-check">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  ${esc(String(h).slice(0, 160))}
+                </li>`).join('')}
+            </ul>` : ''}
+          <div class="bc-section-body text-muted text-sm">
+            ${hasPricing ? 'A pricing section was captured and is being tracked. ' : ''}${hasFeatures ? 'A features section was captured and is being tracked. ' : ''}${(!snap.title && headings.length === 0 && !hasPricing && !hasFeatures) ? 'The snapshot is stored and will be compared against the next check.' : ''}
+          </div>
+        </div>
+
+        <div class="bc-footer">
+          <a href="#/history" class="btn btn-ghost btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            All Changes
+          </a>
+          <a href="#/competitors/${c.competitor_id}" class="btn btn-ghost btn-sm">
+            View ${esc(c.competitor_name)} timeline
+          </a>
+          <a href="${esc(c.competitor_url)}" target="_blank" class="btn btn-secondary btn-sm" style="margin-left:auto">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            View Live Page
+          </a>
+        </div>
+      </div>
+    `;
+  },
+
   html(c) {
     const a = c.analysis || {};
+    // A baseline is the starting snapshot of a page, not a brief about a move
+    // the competitor made, so it gets its own view instead of the battle card.
+    if (c.is_baseline === 1) return BattleCard.baselineHtml(c, a);
     const talkingPoints = Array.isArray(c.talking_points) ? c.talking_points : (a.talking_points || []);
     const keyChanges = Array.isArray(a.key_changes) ? a.key_changes : [];
     const threat = c.threat_level || 'low';

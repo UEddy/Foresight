@@ -104,8 +104,11 @@ router.get('/', (req, res) => {
   // change_count and the "last change" fields feed customer-facing counts and
   // badges, so they exclude trivial (AI-downgraded / pre-AI-gated) changes.
   // Those rows are retained in the table for audit but never surfaced to users.
+  // They also exclude the monitoring baseline, which is a snapshot rather than
+  // a change: a page that has only ever been baselined reports 0 changes and no
+  // last alert, and surfaces baseline_at instead.
   // (MEANINGFUL is a fixed literal, not user input — no injection surface.)
-  const MEANINGFUL = '(is_meaningful IS NULL OR is_meaningful = 1)';
+  const MEANINGFUL = '(is_meaningful IS NULL OR is_meaningful = 1) AND COALESCE(is_baseline, 0) = 0';
   // Each row is a monitored PAGE. group_id + group_name identify the competitor
   // (company) it belongs to; the frontend groups pages by group_id. group_name
   // comes from the canonical competitor_groups row so a rename stays consistent.
@@ -116,7 +119,8 @@ router.get('/', (req, res) => {
       (SELECT COUNT(*) FROM changes WHERE competitor_id = c.id AND ${MEANINGFUL}) AS change_count,
       (SELECT headline     FROM changes WHERE competitor_id = c.id AND ${MEANINGFUL} ORDER BY detected_at DESC LIMIT 1) AS last_headline,
       (SELECT threat_level FROM changes WHERE competitor_id = c.id AND ${MEANINGFUL} ORDER BY detected_at DESC LIMIT 1) AS last_threat,
-      (SELECT detected_at  FROM changes WHERE competitor_id = c.id AND ${MEANINGFUL} ORDER BY detected_at DESC LIMIT 1) AS last_change_at
+      (SELECT detected_at  FROM changes WHERE competitor_id = c.id AND ${MEANINGFUL} ORDER BY detected_at DESC LIMIT 1) AS last_change_at,
+      (SELECT detected_at  FROM changes WHERE competitor_id = c.id AND COALESCE(is_baseline, 0) = 1 ORDER BY detected_at DESC LIMIT 1) AS baseline_at
     FROM competitors c
     LEFT JOIN competitor_groups g ON g.id = c.group_id
     WHERE c.user_id = ?
@@ -241,13 +245,14 @@ router.post('/', (req, res) => {
 
   const created = db.prepare('SELECT * FROM competitors WHERE id = ?').get(result.lastInsertRowid);
 
-  // Day-1 content guarantee: run a full check immediately (not at the next
-  // scheduled run) and generate a baseline AI brief on the CURRENT state of the
-  // page, so the dashboard shows real content within minutes of signup instead
-  // of waiting days for the competitor's site to change. Fire-and-forget: the
-  // add response never blocks on the fetch or the AI call.
+  // Run the first check immediately rather than at the next scheduled run, so
+  // the page's baseline snapshot is captured within minutes of it being added.
+  // That first check is silent by design: it records the starting state and
+  // shows a "baseline captured" row, and never reports pre-existing content as
+  // a change. Briefs start at the next check, if the page actually differs.
+  // Fire-and-forget: the add response never blocks on the fetch.
   setImmediate(() => {
-    checkCompetitor(created, db, { baselineBrief: true }).catch(err => {
+    checkCompetitor(created, db).catch(err => {
       console.error(`First check failed for competitor ${created.id}:`, err.message);
     });
   });
@@ -381,7 +386,10 @@ router.get('/:id/history', (req, res) => {
   const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 90));
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
-  const hist = getCompetitorHistory(competitorId, { userId: req.userId, days, maxRows: limit });
+  // includeBaseline: the timeline shows the monitoring baseline as its labelled
+  // starting point, so a page that has not changed yet reads as "monitoring
+  // started" instead of an empty list. hist.count still counts changes only.
+  const hist = getCompetitorHistory(competitorId, { userId: req.userId, days, maxRows: limit, includeBaseline: true });
   res.json({
     competitor_id: competitorId,
     competitor_name: own.name,
@@ -438,14 +446,14 @@ router.post('/:id/check', async (req, res) => {
     return res.status(403).json({ error: 'This competitor is archived on the Free plan. Upgrade to Pro to restore and check it.' });
   }
 
-  // Respond immediately; run check in background. baselineBrief covers the
-  // edge where a competitor was added before first-check-on-add existed (or
-  // the first fetch failed): the first successful manual check still produces
-  // a baseline brief instead of a silent hash write.
+  // Respond immediately; run check in background. If this page has never been
+  // captured (added before first-check-on-add existed, or its first fetch
+  // failed), checkCompetitor records the baseline instead of diffing, so a
+  // manual check can never turn pre-existing content into a change alert.
   res.json({ message: 'Check started', competitor_id: row.id });
 
   try {
-    await checkCompetitor(row, db, { baselineBrief: true });
+    await checkCompetitor(row, db);
   } catch (err) {
     console.error(`Manual check failed for competitor ${row.id}:`, err.message);
   }

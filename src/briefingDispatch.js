@@ -221,12 +221,15 @@ async function dispatchOne(meeting) {
     return { id: meeting.id, status: 'skipped', reason: 'competitor_missing' };
   }
 
-  // Most recent meaningful change in the last N days
+  // Most recent meaningful change in the last N days. The baseline snapshot is
+  // excluded: a pre-meeting briefing is about what moved, and nothing moved
+  // when the page was first captured.
   const change = db.prepare(`
     SELECT id, headline, threat_level, analysis, talking_points, detected_at
     FROM changes
     WHERE competitor_id = ?
       AND (is_meaningful IS NULL OR is_meaningful = 1)
+      AND COALESCE(is_baseline, 0) = 0
       AND detected_at >= datetime('now', ?)
     ORDER BY detected_at DESC LIMIT 1
   `).get(competitor.id, `-${RECENT_CHANGE_LOOKBACK_DAYS} days`);

@@ -811,6 +811,23 @@ img, svg { display: block; }
 .badge-cyan   { background: var(--cyan-dim);   color: var(--cyan-2);   border-color: rgba(6,182,212,0.22); }
 .badge-cyan::before    { background: var(--cyan);   box-shadow: 0 0 4px var(--cyan); }
 
+/* ── Baseline (first snapshot of a newly monitored page) ─────────
+   Deliberately outside the threat palette. A baseline is the starting state of
+   a page, never a detected change, so it must not read as low/medium/high or
+   compete with a real alert. Dashed border and a muted dot mark it as a marker
+   rather than an event. */
+.badge-baseline { background: var(--bg-elevated); color: var(--txt-2); border-color: var(--border-2); border-style: dashed; }
+.badge-baseline::before { background: var(--txt-3); }
+
+.feed-pip.baseline { background: var(--txt-3); box-shadow: 0 0 0 3px rgba(118,132,148,0.16); }
+.change-threat-stripe.baseline { background: repeating-linear-gradient(180deg, var(--txt-3) 0 4px, transparent 4px 8px); opacity: 0.55; }
+.change-card--baseline .change-headline,
+.feed-item--baseline  .feed-headline { font-weight: 600; }
+.cd-feed-item--baseline { opacity: 0.9; }
+
+.bc-threat--baseline { background: var(--bg-elevated); border: 1px dashed var(--border-2); }
+.bc-threat--baseline .bc-threat-label { color: var(--txt-2); }
+
 /* Light-theme badge text — WCAG AA fix.
    The *-2 tints (e.g. --yellow-2 #FCD34D, --red-2 #FCA5A5) are tuned to read as
    bright text on the dark UI. On the near-white *-dim fills of light mode they
@@ -825,6 +842,7 @@ img, svg { display: block; }
 [data-theme="light"] .conf-pill--low     { color: #047857; }   /* emerald 700 */
 [data-theme="light"] .badge-cyan         { color: #0E7490; }   /* cyan 700 */
 [data-theme="light"] .badge-accent       { color: #4338CA; }   /* indigo 800 */
+[data-theme="light"] .badge-baseline     { color: #334155; }   /* slate 700 */
 
 /* ── Tables ──────────────────────────────────────────────────── */
 .table-wrap {

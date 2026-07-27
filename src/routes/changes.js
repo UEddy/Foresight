@@ -45,10 +45,14 @@ router.get('/', (req, res) => {
     WHERE ${where}
   `).get(...params).n;
 
+  // Baseline rows ARE returned here. They are the "monitoring started" marker
+  // that keeps a brand-new dashboard from looking broken, and the client renders
+  // them as a baseline rather than as a change. They carry a NULL threat_level,
+  // so any threat filter above already excludes them.
   const rows = db.prepare(`
     SELECT ch.id, ch.competitor_id, ch.threat_level, ch.headline, ch.recommended_response,
       ch.talking_points, ch.analysis, ch.diff_summary, ch.detected_at,
-      ch.is_meaningful, ch.gate_category, ch.gate_reason,
+      ch.is_meaningful, ch.is_baseline, ch.gate_category, ch.gate_reason,
       c.name AS competitor_name, c.url AS competitor_url
     FROM changes ch
     JOIN competitors c ON ch.competitor_id = c.id
@@ -77,7 +81,10 @@ router.get('/stats', (req, res) => {
   // gated rows shouldn't inflate the "high threats" and "changes this week"
   // numbers users glance at. Legacy NULL rows count as meaningful so the
   // migration doesn't suddenly empty out historical dashboards.
-  const meaningfulOnly = `(ch.is_meaningful IS NULL OR ch.is_meaningful = 1)`;
+  // A baseline row is a snapshot, not a change, so it never counts toward any
+  // of these numbers. Legacy NULL rows count as changes (existing history is
+  // left exactly as it was).
+  const meaningfulOnly = `(ch.is_meaningful IS NULL OR ch.is_meaningful = 1) AND COALESCE(ch.is_baseline, 0) = 0`;
 
   const total_changes = db.prepare(`
     SELECT COUNT(*) AS n FROM changes ch JOIN competitors c ON ch.competitor_id = c.id
@@ -94,6 +101,13 @@ router.get('/stats', (req, res) => {
   const medium_threats = db.prepare(`
     SELECT COUNT(*) AS n FROM changes ch JOIN competitors c ON ch.competitor_id = c.id
     WHERE c.user_id = ? AND ${meaningfulOnly} AND ch.threat_level = 'medium'
+  `).get(uid).n;
+  // Pages whose baseline snapshot has been captured. Lets the dashboard say
+  // monitoring is live and watching from a known starting point, even before
+  // anything has changed.
+  const baselined_pages = db.prepare(`
+    SELECT COUNT(DISTINCT ch.competitor_id) AS n FROM changes ch JOIN competitors c ON ch.competitor_id = c.id
+    WHERE c.user_id = ? AND COALESCE(ch.is_baseline, 0) = 1
   `).get(uid).n;
   const trivial_changes = db.prepare(`
     SELECT COUNT(*) AS n FROM changes ch JOIN competitors c ON ch.competitor_id = c.id
@@ -116,7 +130,7 @@ router.get('/stats', (req, res) => {
 
   res.json({
     total_competitors, active_competitors, total_changes, changes_this_week,
-    high_threats, medium_threats, trivial_changes, tier,
+    high_threats, medium_threats, trivial_changes, baselined_pages, tier,
     // Page-based fields (billable unit) plus the company count for display.
     pages_used, max_pages, competitor_count,
     // Deprecated alias kept for any older consumer; equals max_pages now.
@@ -140,7 +154,8 @@ router.get('/:id', (req, res) => {
   // Phase 5: include the 5 most-recent prior changes for the same competitor
   // so the battle card can render a "Recent changes from this competitor"
   // strip without a separate round-trip. Always scoped to user_id via the
-  // competitors join we already performed above.
+  // competitors join we already performed above. The baseline snapshot is
+  // excluded: this strip lists changes, and a baseline is not one.
   const recentRows = db.prepare(`
     SELECT ch.id, ch.detected_at, ch.threat_level, ch.headline, ch.pattern_tags, ch.is_meaningful
     FROM changes ch
@@ -150,6 +165,7 @@ router.get('/:id', (req, res) => {
       AND ch.id != ?
       AND ch.detected_at < ?
       AND (ch.is_meaningful IS NULL OR ch.is_meaningful = 1)
+      AND COALESCE(ch.is_baseline, 0) = 0
     ORDER BY ch.detected_at DESC
     LIMIT 5
   `).all(row.competitor_id, req.userId, row.id, row.detected_at);

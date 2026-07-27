@@ -105,6 +105,7 @@ function changesInWindow(db, userId, competitorId, closeDate, days = 30) {
     WHERE ch.competitor_id = ?
       AND c.user_id = ?
       AND (ch.is_meaningful IS NULL OR ch.is_meaningful = 1)
+      AND COALESCE(ch.is_baseline, 0) = 0
       AND date(ch.detected_at) > date(?, ?)
       AND date(ch.detected_at) <= date(?)
     ORDER BY ch.detected_at DESC

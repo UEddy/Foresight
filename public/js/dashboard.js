@@ -415,8 +415,11 @@ const Dashboard = {
             }
           </div>
           <div class="radar-meta">
-            ${stats.total_changes} change${stats.total_changes !== 1 ? 's' : ''} detected all-time
-            · ${stats.changes_this_week} this week
+            ${stats.total_changes === 0 && stats.baselined_pages > 0
+              ? `Baseline captured for ${stats.baselined_pages} page${stats.baselined_pages !== 1 ? 's' : ''}. Watching for changes against it.`
+              : `${stats.total_changes} change${stats.total_changes !== 1 ? 's' : ''} detected all-time
+                 · ${stats.changes_this_week} this week`
+            }
           </div>
         </div>
         <div class="radar-next">09:00 daily</div>
@@ -450,16 +453,26 @@ const Dashboard = {
                 <a href="#/competitors" class="btn btn-primary btn-sm">Add Competitor</a>
                </div>`
             : changes.map(c => `
-                <div class="feed-item" onclick="navigate('/history/${c.id}')" style="cursor:pointer">
-                  <div class="feed-pip ${c.threat_level || 'low'}"></div>
+                <div class="feed-item ${c.is_baseline === 1 ? 'feed-item--baseline' : ''}" onclick="navigate('/history/${c.id}')" style="cursor:pointer">
+                  <div class="feed-pip ${c.is_baseline === 1 ? 'baseline' : (c.threat_level || 'low')}"></div>
                   <div class="feed-body">
-                    <div class="feed-headline">${esc(c.headline || 'Change detected')}</div>
-                    <div class="feed-meta">
-                      <span>${esc(c.competitor_name)}</span>
-                      <span class="feed-dot-sep">·</span>
-                      <span>${timeAgo(c.detected_at)}</span>
-                      ${threatBadge(c.threat_level)}
-                    </div>
+                    ${c.is_baseline === 1 ? `
+                      <div class="feed-headline">Monitoring started, baseline captured</div>
+                      <div class="feed-meta">
+                        <span>${esc(c.competitor_name)}</span>
+                        <span class="feed-dot-sep">·</span>
+                        <span>Snapshot taken ${formatShortDate(c.detected_at)}</span>
+                        <span class="badge badge-baseline">BASELINE</span>
+                      </div>
+                    ` : `
+                      <div class="feed-headline">${esc(c.headline || 'Change detected')}</div>
+                      <div class="feed-meta">
+                        <span>${esc(c.competitor_name)}</span>
+                        <span class="feed-dot-sep">·</span>
+                        <span>${timeAgo(c.detected_at)}</span>
+                        ${threatBadge(c.threat_level)}
+                      </div>
+                    `}
                   </div>
                   <a class="feed-link" href="#/history/${c.id}" onclick="event.stopPropagation()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>

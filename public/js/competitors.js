@@ -201,7 +201,13 @@ const Competitors = {
             <div style="display:flex;flex-direction:column;gap:4px">
               ${threatBadge(c.last_threat)}
               <span class="text-sm" style="color:var(--txt-3)">${timeAgo(c.last_change_at)}</span>
-            </div>` : '<span class="text-muted">-</span>'}
+            </div>`
+          : c.baseline_at ? `
+            <div style="display:flex;flex-direction:column;gap:4px" title="The first snapshot of this page. Nothing has changed against it yet.">
+              <span class="badge badge-baseline">BASELINE</span>
+              <span class="text-sm" style="color:var(--txt-3)">captured ${formatShortDate(c.baseline_at)}</span>
+            </div>`
+          : '<span class="text-muted">-</span>'}
         </td>
         <td class="cell-full" data-label="Actions">
           <div class="td-actions">
