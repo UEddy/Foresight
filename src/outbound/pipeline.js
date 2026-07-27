@@ -13,7 +13,7 @@ const store = require('./store');
 const { getProvider, OutboundConfigError, rolesForStage, classifyCompany } = require('./provider');
 const { structuredCall, draftCall } = require('./ai');
 const { getAgentPrompt } = require('./agentPrompt');
-const { makeFunnel, formatFunnel, totalRejectedPeople } = require('./funnel');
+const { makeFunnel, formatFunnel, totalRejectedPeople, mergePersonCounts } = require('./funnel');
 const { sanitizeCopy, sanitizeCopyDeep } = require('../lib/sanitizeText');
 const { sleep } = require('../lib/retry');
 
@@ -47,6 +47,7 @@ async function runPipeline(runId) {
   const brief = params.brief || '';
   const targetCount = clampCount(params.targetCount);
   const regionHints = params.regionHints || '';
+  const segment = params.segment || '';
 
   const provider = getProvider();
 
@@ -56,7 +57,7 @@ async function runPipeline(runId) {
 
   let candidates;
   try {
-    candidates = await provider.discoverCompanies(brief, { targetCount, regionHints, funnel });
+    candidates = await provider.discoverCompanies(brief, { targetCount, regionHints, segment, funnel });
   } catch (err) {
     // Config errors (missing/invalid SERPER key) surface as a clean run error.
     const msg = err instanceof OutboundConfigError ? err.message : `Discovery failed: ${safeMsg(err)}`;
@@ -177,18 +178,53 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
   // People + contact (never fabricated). findPeople only returns a person whose
   // current employment at the company is verified (see provider.findPeople), and
   // it records the per-gate rejection reason into the funnel itself.
+  //
+  // Crypto candidates get a second attempt on X when LinkedIn verifies nobody,
+  // because crypto founders are routinely pseudonymous or absent from LinkedIn
+  // (see provider.findPeopleOnX). The LinkedIn attempt therefore counts into a
+  // SCRATCH funnel: its rejection is only final if the X attempt also fails, and
+  // merging it unconditionally would tally a lead we did find as "no person".
   const roles = rolesForStage(company.stage_size);
+  const canTryX = company.source_kind === 'crypto';
+  const personFunnel = canTryX ? makeFunnel() : funnel;
   let person = null, contact = null;
   try {
-    const people = await provider.findPeople(company.company, roles, { funnel });
+    const people = await provider.findPeople(company.company, roles, { funnel: personFunnel });
     person = people[0] || null;
   } catch (err) {
     console.warn('[outbound.pipeline] findPeople failed:', company.company, '-', safeMsg(err));
     // Error path: findPeople never reached its own accounting, so count it here.
-    if (funnel) funnel.no_person += 1;
+    if (personFunnel) personFunnel.no_person += 1;
   }
+
+  if (!person && canTryX) {
+    const xFunnel = makeFunnel();
+    try {
+      const people = await provider.findPeopleOnX(company.company, {
+        funnel: xFunnel, xHandleHint: company.x_handle || null,
+      });
+      person = people[0] || null;
+    } catch (err) {
+      console.warn('[outbound.pipeline] findPeopleOnX failed:', company.company, '-', safeMsg(err));
+      xFunnel.no_person += 1;
+    }
+    if (person) {
+      // LinkedIn found nobody but X did: the LinkedIn rejection is not a drop,
+      // so it is discarded rather than merged, and the fallback is recorded.
+      if (funnel) funnel.x_fallback_used += 1;
+      console.log('[outbound.pipeline] no LinkedIn for ' + JSON.stringify(company.company)
+        + ', verified on X instead: ' + (person.profileUrl || '?'));
+    } else if (funnel) {
+      // Both routes failed, so the company really is a no-person drop. Count it
+      // once (from the LinkedIn attempt) and take only the per-gate detail from
+      // the X attempt, so one company never counts as two.
+      mergePersonCounts(funnel, personFunnel);
+      mergePersonCounts(funnel, xFunnel, { noPerson: false });
+    }
+  }
+
   // Rule 1 + 2: no verified current person means the company is not a lead. The
-  // reason was already tallied (inside findPeople, or the catch above).
+  // reason was already tallied (inside findPeople, findPeopleOnX, or above).
   if (!person) return null;
 
   try { contact = await provider.findContact(person); } catch (_) { contact = null; }
@@ -226,13 +262,23 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
     score,
     score_breakdown: scoreResult?.score_breakdown || {},
     why_now: scoreResult?.why_now || null,
-    person_name: person?.person_name || null,
-    person_title: person?.person_title || null,
-    person_seniority: person?.person_seniority || null,
+    // Model-extracted, and rendered straight into the lead table, so they go
+    // through the no-dash / no-connector post-processor like every other
+    // surface that displays model output (see CLAUDE.md). Both people finders
+    // land here, so neither the LinkedIn nor the X path can leak a dash.
+    person_name: sanitizeCopy(person?.person_name) || null,
+    person_title: sanitizeCopy(person?.person_title) || null,
+    person_seniority: sanitizeCopy(person?.person_seniority) || null,
     channel: contact?.channel || person?.channel || 'linkedin',
     handle_or_email: contact?.handle_or_email || person?.profileUrl || null,
     contact_status: contact?.contact_status || 'manual',
     backup_channel: contact?.backup_channel || null,
+    // Honesty markers. linkedin_status is 'unavailable' only when we searched
+    // LinkedIn, verified nobody, and fell back to a verified X profile, so the
+    // lead never implies a LinkedIn we did not find. source records which
+    // discovery source produced the candidate.
+    linkedin_status: person?.linkedin_status || (person?.channel === 'x' ? 'unavailable' : 'found'),
+    source: company.discovery_source || 'serper',
     draft,
     confidence,
   };
@@ -365,4 +411,8 @@ function hasUsableContact(person, contact) {
 module.exports = {
   startRun, redraftLead, SCORE_THRESHOLD, HARD_CAP,
   freshnessBucket, selectTopLeads,
+  // Exported for tests: buildLead takes its provider as an argument, so the
+  // gate order and the X-fallback accounting can be driven with a stub provider
+  // and no network (see test-outbound-crypto.js).
+  buildLead,
 };

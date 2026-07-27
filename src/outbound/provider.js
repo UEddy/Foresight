@@ -22,6 +22,8 @@ const axios = require('axios');
 const { structuredCall } = require('./ai');
 const { recordRejection } = require('./funnel');
 const { withRetry, sleep } = require('../lib/retry');
+const { discoverCryptoRaises } = require('./cryptoDiscovery');
+const { normalizeXHandle, xProfileUrl } = require('./cryptoSources');
 
 // Pause between consecutive Serper searches in the discovery loop so one run
 // does not burst past the provider's per-minute limit.
@@ -135,7 +137,46 @@ class SearchFirstProvider {
   // larger than targetCount. The pipeline runs the gates over the whole pool and
   // applies the targetCount cap last (see runPipeline). Do NOT truncate to
   // targetCount here.
-  async discoverCompanies(brief, { targetCount = 10, regionHints = '', funnel = null } = {}) {
+  //
+  // opts.segment selects the discovery sources. The default is web search only.
+  // 'web3' additionally pulls recent crypto funding rounds (DeFiLlama and
+  // CryptoRank, see cryptoDiscovery.js) and merges them into the same pool, so
+  // crypto leads compete on the same scoring, freshness, and dedupe rules as
+  // everything else rather than living in a parallel list.
+  async discoverCompanies(brief, { targetCount = 10, regionHints = '', funnel = null, segment = '' } = {}) {
+    this.ensureConfigured();
+    if (String(segment || '').toLowerCase() !== 'web3') {
+      return this.discoverViaSearch(brief, { targetCount, regionHints, funnel });
+    }
+
+    // Crypto first: it is structured data and costs no search budget, so a
+    // later search failure still leaves the web3 run with candidates.
+    let cryptoCandidates = [];
+    try {
+      const res = await discoverCryptoRaises({ funnel });
+      cryptoCandidates = res.candidates;
+      // Honest reporting: a source we could not reach becomes a note on the run
+      // rather than a silent hole in the results.
+      if (funnel && res.notes.length) funnel.notes = (funnel.notes || []).concat(res.notes);
+      for (const n of res.notes) console.warn('[outbound.discovery] web3 source note: ' + n);
+    } catch (err) {
+      const msg = 'Crypto discovery failed: ' + String(err?.message || err).slice(0, 200);
+      if (funnel) funnel.notes = (funnel.notes || []).concat([msg]);
+      console.error('[outbound.discovery] ' + msg);
+    }
+
+    const searchCandidates = await this.discoverViaSearch(brief, { targetCount, regionHints, funnel });
+    const merged = mergeCandidatePools(searchCandidates, cryptoCandidates, poolSizeFor(targetCount));
+    if (funnel) funnel.merged_cross_source_dupes = merged.duplicates;
+    console.log('[outbound.discovery] web3 merge: ' + searchCandidates.length + ' from search, '
+      + cryptoCandidates.length + ' from raises, ' + merged.duplicates
+      + ' already known, ' + merged.candidates.length + ' in the pool');
+    return merged.candidates;
+  }
+
+  // Web-search discovery. This is the original Serper path, unchanged; see
+  // discoverCompanies for how a segment layers extra sources on top of it.
+  async discoverViaSearch(brief, { targetCount = 10, regionHints = '', funnel = null } = {}) {
     this.ensureConfigured();
     const gl = regionHintToGl(regionHints);
     const poolSize = poolSizeFor(targetCount);
@@ -249,6 +290,8 @@ class SearchFirstProvider {
         trigger: c.trigger || null,
         trigger_url: c.trigger_url,
         trigger_date: normalizeTriggerDate(c.trigger_date),
+        source_kind: 'search',
+        discovery_source: 'serper',
       });
     }
     if (funnel) funnel.after_dedupe = out.length; // survivors of dedupe + exclusion rules
@@ -340,18 +383,140 @@ class SearchFirstProvider {
     return [person];
   }
 
+  // ── People, X/Twitter fallback ────────────────────────────────────────────────
+  // Crypto founders are frequently pseudonymous, and plenty of them have no
+  // LinkedIn at all. Dropping every such project would silently throw away most
+  // of the web3 segment, and inventing a LinkedIn URL for them is never an
+  // option. So when findPeople verifies nobody, this looks for the founder on X
+  // instead and applies the SAME two checks: employment is current, and the
+  // project named in their own bio is the target project.
+  //
+  // Only ever called for crypto-sourced candidates (see pipeline.buildLead). It
+  // returns at most one person, whose profileUrl is an x.com URL that appeared
+  // in the search results, and marks linkedin_status 'unavailable' so the lead
+  // records honestly that no LinkedIn was found rather than implying none was
+  // looked for.
+  async findPeopleOnX(company, { funnel = null, xHandleHint = null } = {}) {
+    this.ensureConfigured();
+    // The project's own handle is a search hint only: it narrows the results to
+    // the right project's orbit, it is never returned as the contact.
+    const hint = normalizeXHandle(xHandleHint);
+    const q = `"${company}" (founder OR "co-founder" OR cofounder OR CEO) `
+      + `(site:x.com OR site:twitter.com)${hint ? ` "@${hint}"` : ''}`;
+    const hits = await this.search(q, { num: 10 });
+    if (!hits || !hits.length) { if (funnel) funnel.no_person += 1; return []; }
+
+    const system = 'From X (Twitter) search results, identify the single person who is CURRENTLY a '
+      + 'founder, co-founder, or CEO of the named crypto project. Two separate checks must BOTH '
+      + 'pass. (1) The role is current: the bio states it in the present tense, with no "ex-", '
+      + '"former", "formerly", or "previously" attached to THIS project. (2) The project is the '
+      + 'RIGHT one: the project named in the person\'s own bio must be the target project, not a '
+      + 'different one they also advise or invest in. Report current_employer exactly as the bio '
+      + 'writes it. A pseudonymous handle is acceptable as a person, but the ACCOUNT must belong to '
+      + 'a human, not to the project itself: set is_project_account=true when the result is the '
+      + 'project\'s official account, a team account, a support account, or a token account. If no '
+      + 'result shows a current founder of THIS project, return { "person": null }. When in doubt, '
+      + 'return null rather than guess. Never invent a person, a bio, or a handle: use only what '
+      + 'appears in the results. Never use em-dashes, en-dashes, or a connecting "+"; write "and" '
+      + 'instead. Return JSON only.';
+    const user = `Project: ${company}\n\nResults (JSON):\n${JSON.stringify(hits)}`
+      + '\n\nReturn: { "person": { "person_name": string (the display name or handle), '
+      + '"person_title": string (their CURRENT role at the project), "person_seniority": string, '
+      + '"x_handle": string (the handle without the @), "profileUrl": string (must be one of the '
+      + 'result links), "current_employer": string (the project named in their bio, exactly as '
+      + 'written), "company_match": boolean (true only if current_employer is the target project), '
+      + '"employment_verified": boolean (true only if the bio shows the role as current), '
+      + '"is_project_account": boolean (true if this account is the project itself, not a person), '
+      + '"employment_evidence": string (the exact phrase from the result that shows the current '
+      + 'role) } } or { "person": null }.';
+
+    const parsed = await structuredCall({ system, user, maxTokens: 800 });
+    const p = parsed?.person;
+    if (!p) { if (funnel) funnel.no_person += 1; return []; }
+
+    const { person, reason } = classifyXPersonResult(company, p, hits);
+    if (!person) {
+      recordRejection(funnel, reason);
+      console.warn('[outbound.provider] rejected X person for ' + JSON.stringify(company)
+        + ': gate=' + reason
+        + ' handle=' + JSON.stringify(p.x_handle || null)
+        + ' bio_project=' + JSON.stringify(p.current_employer || null));
+      return [];
+    }
+    return [person];
+  }
+
   // ── Contact ────────────────────────────────────────────────────────────────────
   // Phase 1: no email finder. Always manual, with the profile URL preserved so it
   // can be grabbed via the Apollo/Hunter Chrome extension. Never fabricated.
+  //
+  // An X-sourced person keeps the x channel and its x.com profile URL, and gets
+  // no backup channel, because "linkedin" is exactly what we failed to verify
+  // for them (person.linkedin_status is 'unavailable').
   async findContact(person) {
+    const channel = person?.channel || 'linkedin';
+    const isX = channel === 'x';
     return {
       contact_status: 'manual',
-      channel: person?.channel || 'linkedin',
+      channel,
       handle_or_email: person?.profileUrl || null,
-      backup_channel: person?.profileUrl ? 'linkedin' : null,
+      backup_channel: isX ? null : (person?.profileUrl ? 'linkedin' : null),
       profileUrl: person?.profileUrl || null,
     };
   }
+}
+
+// Merge the search pool and the crypto pool into one pool of at most poolSize
+// candidates. Returns { candidates, duplicates }.
+//
+// A project discovered by both sources is kept ONCE, as the search candidate
+// enriched with the crypto extras (the X handle and the crypto source_kind, so
+// it still qualifies for the X people fallback). Matching is by domain when
+// both sides have one, else by normalized company name.
+//
+// Neither source is allowed to crowd the other out: each is reserved half the
+// pool, and only leftover room is given away. Without that reservation a busy
+// funding month would fill the pool with raises and the search path would never
+// contribute a candidate.
+function mergeCandidatePools(searchCandidates, cryptoCandidates, poolSize) {
+  const search = Array.isArray(searchCandidates) ? searchCandidates : [];
+  const crypto = Array.isArray(cryptoCandidates) ? cryptoCandidates : [];
+
+  const keyOf = (c) => (c.domain ? 'd:' + String(c.domain).toLowerCase() : 'n:' + normalizeCompanyName(c.company));
+
+  const seen = new Map();
+  for (const c of search) seen.set(keyOf(c), c);
+
+  const cryptoOnly = [];
+  let duplicates = 0;
+  for (const c of crypto) {
+    const key = keyOf(c);
+    const hit = seen.get(key);
+    if (hit) {
+      duplicates += 1;
+      // Search found it first and has the better trigger evidence (a real
+      // article link the model verified). Carry over only what crypto adds.
+      hit.source_kind = 'crypto';
+      hit.discovery_source = [hit.discovery_source, c.discovery_source].filter(Boolean).join(',');
+      hit.x_handle = hit.x_handle || c.x_handle;
+      hit.raise_amount_usd = hit.raise_amount_usd || c.raise_amount_usd;
+      hit.raise_round = hit.raise_round || c.raise_round;
+      if (!hit.trigger_date && c.trigger_date) hit.trigger_date = c.trigger_date;
+      continue;
+    }
+    seen.set(key, c);
+    cryptoOnly.push(c);
+  }
+
+  const half = Math.ceil(poolSize / 2);
+  const cryptoTake = Math.min(cryptoOnly.length, Math.max(half, poolSize - search.length));
+  const searchTake = Math.min(search.length, poolSize - cryptoTake);
+  const candidates = search.slice(0, searchTake).concat(cryptoOnly.slice(0, cryptoTake));
+
+  // Freshness first, matching the ordering the search path already applies, so
+  // the two sources interleave by trigger date rather than by origin.
+  candidates.sort((a, b) => triggerRecencyRank(a.trigger_date) - triggerRecencyRank(b.trigger_date));
+  return { candidates: candidates.slice(0, poolSize), duplicates };
 }
 
 function domainFromUrl(url) {
@@ -428,6 +593,87 @@ function evaluatePersonResult(company, p, hits) {
   return classifyPersonResult(company, p, hits).person;
 }
 
+// Decorations crypto projects glue onto their own handle. Unlike the company
+// names companyNamesMatch normalizes, an X handle has no separators, so
+// "MorphoLabs" and "ethena_official" have to be stripped without word
+// boundaries to be recognised as the project's own account.
+const HANDLE_DECORATION_RE =
+  /^(?:the|0x|_)+|(?:labs?|protocol|network|finance|fi|dao|xyz|io|hq|official|team|app|foundation|_)+$/g;
+
+// True when an X handle is really the project's own account rather than a
+// person's. Deliberately errs towards rejecting: a lead is worth nothing if the
+// "founder" we surface turns out to be a support inbox, and the model's
+// is_project_account flag is the primary signal in any case.
+function handleLooksLikeProject(handle, company) {
+  const target = normalizeCompanyName(company);
+  if (!target) return false;
+  let h = String(handle || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!h) return false;
+  // Strip decorations repeatedly so "ethena_labs_official" collapses too.
+  let previous;
+  do { previous = h; h = h.replace(HANDLE_DECORATION_RE, ''); } while (h !== previous && h);
+  return Boolean(h) && h === target;
+}
+
+// The X/Twitter equivalent of classifyPersonResult, for the crypto fallback.
+// The same two checks apply (employment is current, the project is the right
+// one), plus one that only exists on X: the result must be a PERSON, not the
+// project's own account. Returns { person, reason } with reason drawn from
+// funnel.js X_REJECTION_REASONS.
+//
+// Nothing here relaxes the honesty rules. The profile URL must be a real x.com
+// link the search returned, the handle must agree with that link, and the
+// accepted person is marked linkedin_status 'unavailable' rather than being
+// given a fabricated or guessed LinkedIn URL.
+function classifyXPersonResult(company, p, hits) {
+  const list = Array.isArray(hits) ? hits : [];
+  if (!p || !p.profileUrl || !list.some(h => h.link === p.profileUrl)) {
+    return { person: null, reason: 'x_not_in_hits' };
+  }
+  // The handle has to come out of the URL the search actually returned, and the
+  // model's stated handle has to agree with it.
+  const urlHandle = normalizeXHandle(p.profileUrl);
+  if (!urlHandle) return { person: null, reason: 'x_not_in_hits' };
+  const claimed = normalizeXHandle(p.x_handle);
+  if (claimed && claimed.toLowerCase() !== urlHandle.toLowerCase()) {
+    return { person: null, reason: 'x_not_in_hits' };
+  }
+
+  // Check 0 (X only) — a person, not the project. The model's flag plus a
+  // backstop: a handle that reduces to the project name is the project's own
+  // account, however the model labelled it.
+  if (p.is_project_account === true) return { person: null, reason: 'x_project_account' };
+  if (handleLooksLikeProject(urlHandle, company)) return { person: null, reason: 'x_project_account' };
+  if (!p.person_name || !String(p.person_name).trim()) return { person: null, reason: 'x_project_account' };
+
+  // Check 1 — the role is current.
+  if (p.employment_verified !== true) return { person: null, reason: 'x_employment_unverified' };
+  const matched = list.find(h => h.link === p.profileUrl);
+  const evidence = `${p.person_title || ''} ${matched?.title || ''} ${matched?.snippet || ''}`;
+  if (looksFormerAtCompany(evidence, company)) return { person: null, reason: 'x_former_employee' };
+
+  // Check 2 — the project is the right one.
+  if (p.company_match !== true) return { person: null, reason: 'x_company_match_false' };
+  if (!companyNamesMatch(p.current_employer, company)) return { person: null, reason: 'x_employer_mismatch' };
+
+  return {
+    reason: null,
+    person: {
+      person_name: String(p.person_name).trim(),
+      person_title: p.person_title || null,
+      person_seniority: p.person_seniority || null,
+      profileUrl: xProfileUrl(urlHandle),
+      channel: 'x',
+      x_handle: urlHandle,
+      // Honest marker: we looked on LinkedIn and verified nobody there.
+      linkedin_status: 'unavailable',
+      employment_verified: true,
+      current_employer: p.current_employer || null,
+      company_match: true,
+    },
+  };
+}
+
 // Normalize a company name for comparison: lowercase, drop a domain's TLD, strip
 // punctuation and common legal/entity suffix words (Inc, Labs, Foundation,
 // Association, Ltd, and friends), then remove whitespace. So "Morpho",
@@ -486,6 +732,13 @@ const KNOWN_PEER_VENDORS = [
   'semrush', 'ahrefs', 'similarweb', 'spyfu',
   // social listening / media intelligence
   'brandwatch', 'meltwater', 'sprout social', 'sprinklr', 'talkwalker',
+  // crypto on-chain data and market intelligence. Same rule, crypto vocabulary:
+  // these sell the analytics genre, so they will not buy it. The web3 segment
+  // also screens them at discovery (see cryptoDiscovery.isCryptoPeer); listing
+  // them here catches the ones the SEARCH path surfaces.
+  'nansen', 'dune analytics', 'arkham', 'messari', 'kaito', 'token terminal',
+  'glassnode', 'santiment', 'chainalysis', 'elliptic', 'trm labs', 'defillama',
+  'dappradar', 'footprint analytics', 'lunarcrush', 'rootdata', 'cryptorank',
 ];
 
 // The monitoring capability itself, in its many phrasings.
@@ -606,7 +859,9 @@ function getProvider() {
 
 module.exports = {
   SearchFirstProvider, getProvider, OutboundConfigError, rolesForStage,
-  classifyPersonResult, evaluatePersonResult, normalizeCompanyName, companyNamesMatch,
-  looksFormerAtCompany, classifyCompany, poolSizeFor,
+  classifyPersonResult, evaluatePersonResult, classifyXPersonResult,
+  normalizeCompanyName, companyNamesMatch,
+  looksFormerAtCompany, classifyCompany, poolSizeFor, mergeCandidatePools,
+  handleLooksLikeProject,
   DISCOVERY_MULTIPLIER, MAX_POOL, MAX_SEARCHES_PER_RUN, MAX_RAW_RESULTS,
 };

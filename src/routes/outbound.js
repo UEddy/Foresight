@@ -18,6 +18,9 @@ const { startRun, redraftLead, HARD_CAP } = require('../outbound/pipeline');
 
 const router = express.Router();
 
+// Discovery segments a run may request. '' is the default (web search only).
+const SEGMENTS = ['', 'web3'];
+
 // ── Runs ─────────────────────────────────────────────────────────────────────────
 
 router.post('/runs', (req, res) => {
@@ -35,10 +38,17 @@ router.post('/runs', (req, res) => {
 
   const regionHints = String(req.body?.regionHints || '').slice(0, 200);
 
+  // Discovery segment. '' (the default) is web search only. 'web3' adds recent
+  // crypto funding rounds from DeFiLlama and CryptoRank alongside the search
+  // results (see src/outbound/cryptoDiscovery.js). An unrecognised value falls
+  // back to the default rather than erroring.
+  const segment = SEGMENTS.includes(req.body?.segment) ? req.body.segment : '';
+
   const run = store.createRun(req.userId, {
     brief: brief.slice(0, 4000),
     targetCount,
     regionHints,
+    segment,
   });
 
   startRun(run.id); // fire-and-forget background processing

@@ -72,6 +72,7 @@ const LEAD_INSERT_COLS = [
   'trigger', 'trigger_url', 'trigger_at', 'score', 'score_breakdown', 'why_now',
   'person_name', 'person_title', 'person_seniority',
   'channel', 'handle_or_email', 'contact_status', 'backup_channel',
+  'linkedin_status', 'source',
   'draft', 'confidence',
 ];
 
@@ -115,6 +116,8 @@ function insertLead(runId, lead) {
     handle_or_email: lead.handle_or_email || null,
     contact_status: lead.contact_status || 'manual',
     backup_channel: lead.backup_channel || null,
+    linkedin_status: lead.linkedin_status || null,
+    source: lead.source || null,
     draft: lead.draft || null,
     confidence: lead.confidence || null,
   };

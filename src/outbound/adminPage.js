@@ -84,8 +84,16 @@ function renderOutboundBody(csrfToken) {
             <label for="ob-region">Region hints (optional)</label>
             <input type="text" id="ob-region" placeholder="e.g. US, UK, remote-first">
           </div>
+          <div class="field">
+            <label for="ob-segment">Discovery segment</label>
+            <select id="ob-segment">
+              <option value="">Web search only (default)</option>
+              <option value="web3">Web search and crypto raises (web3)</option>
+            </select>
+            <div class="ob-inline-note">Web3 adds projects that raised in the last 6 months, from DeFiLlama and CryptoRank, ranked alongside the search leads.</div>
+          </div>
           <button type="submit" class="submit" id="ob-start">Find leads</button>
-          <div class="warn">Discovery needs SERPER_API_KEY set in Railway. Contacts come back as a profile link to grab manually. No email is fabricated.</div>
+          <div class="warn">Discovery needs SERPER_API_KEY set in Railway. The web3 segment also needs DEFILLAMA_API_KEY (raises moved to the paid plan), and CRYPTORANK_API_KEY is optional. Contacts come back as a profile link to grab manually. No email is fabricated.</div>
         </form>
 
         <div class="stat-section-title" style="margin-top:24px">Recent runs</div>
@@ -195,9 +203,19 @@ function renderOutboundBody(csrfToken) {
         employment_unverified: 'Employment not verified',
         former_employee: 'Former employee',
         company_match_false: 'Company not affirmed',
-        employer_mismatch: 'Employer name mismatch'
+        employer_mismatch: 'Employer name mismatch',
+        x_not_in_hits: 'X profile not in results',
+        x_employment_unverified: 'X role not verified',
+        x_former_employee: 'X bio reads as former founder',
+        x_company_match_false: 'X project not affirmed',
+        x_employer_mismatch: 'X bio named another project',
+        x_project_account: 'X account is the project'
       };
-      var REJ_ORDER = ['not_in_hits', 'employment_unverified', 'former_employee', 'company_match_false', 'employer_mismatch'];
+      var REJ_ORDER = [
+        'not_in_hits', 'employment_unverified', 'former_employee', 'company_match_false', 'employer_mismatch',
+        'x_not_in_hits', 'x_employment_unverified', 'x_former_employee', 'x_company_match_false',
+        'x_employer_mismatch', 'x_project_account'
+      ];
 
       function funnelStat(label, value, cls) {
         var s = document.createElement('div'); s.className = 'ob-stat' + (cls ? ' ' + cls : '');
@@ -221,14 +239,34 @@ function renderOutboundBody(csrfToken) {
         var row = document.createElement('div'); row.className = 'ob-funnel-row';
         row.appendChild(funnelStat('Discovered (raw)', f.discovered_raw));
         row.appendChild(funnelStat('After dedupe', f.after_dedupe));
+        // Web3 segment stats, shown only when crypto discovery actually ran.
+        if (f.crypto_raises_fetched) {
+          row.appendChild(funnelStat('Raises fetched', f.crypto_raises_fetched));
+          row.appendChild(funnelStat('Crypto candidates', f.crypto_candidates));
+          row.appendChild(funnelStat('Analytics peers', f.crypto_peer, 'drop'));
+          row.appendChild(funnelStat('Unfit category', f.crypto_unfit_category, 'drop'));
+        }
         row.appendChild(funnelStat('Peers', f.peer, 'drop'));
         row.appendChild(funnelStat('No person', f.no_person, 'drop'));
         row.appendChild(funnelStat('People rejected', rejTotal, 'drop'));
+        if (f.x_fallback_used) row.appendChild(funnelStat('Found on X', f.x_fallback_used, 'kept'));
         row.appendChild(funnelStat('No contact', f.no_contact, 'drop'));
         row.appendChild(funnelStat('Below score', f.below_threshold, 'drop'));
         row.appendChild(funnelStat('Over target', f.capped, 'drop'));
         row.appendChild(funnelStat('Kept', f.kept, 'kept'));
         panel.appendChild(row);
+
+        // Honest notes about any source that could not be reached, so an empty
+        // web3 run reads as "DeFiLlama needs a key", not as "no leads exist".
+        if (f.notes && f.notes.length) {
+          var nb = document.createElement('div'); nb.className = 'ob-funnel-break';
+          f.notes.forEach(function (n) {
+            var chip = document.createElement('span'); chip.className = 'ob-break-chip';
+            chip.textContent = n;
+            nb.appendChild(chip);
+          });
+          panel.appendChild(nb);
+        }
 
         if (rejTotal) {
           var br = document.createElement('div'); br.className = 'ob-funnel-break';
@@ -323,6 +361,14 @@ function renderOutboundBody(csrfToken) {
         var cs = document.createElement('span'); cs.className = 'pill pill-' + (lead.contact_status || 'manual');
         cs.textContent = 'contact: ' + (lead.contact_status || 'manual');
         meta.appendChild(cs);
+        if (lead.channel) { var ch = document.createElement('span'); ch.className = 'ob-run-meta'; ch.textContent = 'via ' + lead.channel; meta.appendChild(ch); }
+        // Say plainly when no LinkedIn was verified. The lead reached this point
+        // on a verified X profile instead, and no LinkedIn URL was invented.
+        if (lead.linkedin_status === 'unavailable') {
+          var ls = document.createElement('span'); ls.className = 'ob-run-meta'; ls.textContent = 'LinkedIn: unavailable, verified on X';
+          meta.appendChild(ls);
+        }
+        if (lead.source) { var sp = document.createElement('span'); sp.className = 'ob-run-meta'; sp.textContent = 'source: ' + lead.source; meta.appendChild(sp); }
         if (lead.confidence) { var cf = document.createElement('span'); cf.className = 'ob-run-meta'; cf.textContent = 'confidence ' + lead.confidence; meta.appendChild(cf); }
         if (lead.trigger_url) { var tl = document.createElement('a'); tl.className = 'ob-btn'; tl.href = lead.trigger_url; tl.target = '_blank'; tl.rel = 'noopener'; tl.textContent = 'Trigger source ↗'; meta.appendChild(tl); }
         td.appendChild(meta);
@@ -388,7 +434,8 @@ function renderOutboundBody(csrfToken) {
         api('POST', '/runs', {
           brief: brief,
           targetCount: parseInt(el('ob-count').value, 10) || 10,
-          regionHints: el('ob-region').value.trim()
+          regionHints: el('ob-region').value.trim(),
+          segment: el('ob-segment').value
         }).then(function (data) {
           activeRunId = data.id;
           el('ob-leads-title').textContent = 'Leads · Run #' + data.id;

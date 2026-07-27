@@ -587,7 +587,7 @@ const SCHEMA = `
     created_by INTEGER NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status TEXT NOT NULL DEFAULT 'pending',   -- pending | running | done | error
-    params TEXT,                              -- JSON: { brief, targetCount, regionHints }
+    params TEXT,                              -- JSON: { brief, targetCount, regionHints, segment }
     error_message TEXT,
     total_found INTEGER DEFAULT 0,
     total_kept INTEGER DEFAULT 0,
@@ -617,10 +617,12 @@ const SCHEMA = `
     person_name TEXT,
     person_title TEXT,
     person_seniority TEXT,
-    channel TEXT,
+    channel TEXT,                             -- linkedin | x | email
     handle_or_email TEXT,
     contact_status TEXT DEFAULT 'manual',     -- verified | unverified | guessed | manual
     backup_channel TEXT,
+    linkedin_status TEXT,                     -- found | unavailable; 'unavailable' means LinkedIn was searched and verified nobody, so the lead fell back to a verified X profile
+    source TEXT,                              -- discovery source: serper | defillama | cryptorank (comma-joined when more than one found it)
     draft TEXT,
     confidence TEXT,                          -- high | medium | low
     status TEXT NOT NULL DEFAULT 'new',       -- new | contacted | replied | skipped
@@ -840,6 +842,19 @@ async function initDb() {
   const outboundLeadCols = (sqlDb.exec('PRAGMA table_info(outbound_leads)')[0]?.values || []).map(v => v[1]);
   if (outboundLeadCols.length && !outboundLeadCols.includes('trigger_at')) {
     sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN trigger_at DATETIME');
+  }
+
+  // Outbound leads: honesty and provenance markers for the web3 discovery
+  // segment (additive, nullable). linkedin_status is 'unavailable' when the
+  // people finder searched LinkedIn, verified nobody, and fell back to a
+  // verified X profile, so a crypto founder without a LinkedIn is recorded as
+  // such instead of getting a fabricated one. source names the discovery source
+  // that produced the lead. Both are NULL on leads that predate the columns.
+  if (outboundLeadCols.length && !outboundLeadCols.includes('linkedin_status')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN linkedin_status TEXT');
+  }
+  if (outboundLeadCols.length && !outboundLeadCols.includes('source')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN source TEXT');
   }
 
   // Outbound runs: per-stage funnel counters (additive; existing DBs created the
