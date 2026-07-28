@@ -21,6 +21,10 @@ const router = express.Router();
 // Discovery segments a run may request. '' is the default (web search only).
 const SEGMENTS = ['', 'web3'];
 
+// Channels a redraft may switch a lead to. Email drafts come back with a subject
+// line of their own; linkedin and x drafts are a body only.
+const REDRAFT_CHANNELS = ['linkedin', 'x', 'email'];
+
 // ── Runs ─────────────────────────────────────────────────────────────────────────
 
 router.post('/runs', (req, res) => {
@@ -93,7 +97,10 @@ router.post('/leads/:id/redraft', async (req, res) => {
   const lead = store.getLeadForUser(req.params.id, req.userId);
   if (!lead) return res.status(404).json({ error: 'Lead not found.' });
 
-  const channel = String(req.body?.channel || '').trim() || undefined;
+  // An unrecognised channel falls back to the lead's current one (undefined here)
+  // rather than erroring, the same way an unknown run segment does.
+  const requested = String(req.body?.channel || '').trim().toLowerCase();
+  const channel = REDRAFT_CHANNELS.includes(requested) ? requested : undefined;
   const angle = String(req.body?.angle || '').trim() || undefined;
 
   try {
@@ -101,7 +108,11 @@ router.post('/leads/:id/redraft', async (req, res) => {
     if (!result) {
       return res.status(502).json({ error: 'Drafting is unavailable right now (check ANTHROPIC_API_KEY).' });
     }
-    store.updateLeadDraft(lead.id, { draft: result.text, channel: result.channel });
+    // subject is passed even when null so redrafting an email as a LinkedIn
+    // message clears the subject it can no longer carry.
+    store.updateLeadDraft(lead.id, {
+      draft: result.text, channel: result.channel, subject: result.subject,
+    });
     res.json({ lead: store.getLeadForUser(lead.id, req.userId) });
   } catch (err) {
     console.error('[outbound] redraft failed:', err?.message || err);

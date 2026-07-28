@@ -73,7 +73,7 @@ const LEAD_INSERT_COLS = [
   'person_name', 'person_title', 'person_seniority',
   'channel', 'handle_or_email', 'contact_status', 'backup_channel',
   'linkedin_status', 'source',
-  'draft', 'confidence',
+  'draft', 'draft_subject', 'confidence',
 ];
 
 // Freshness-first ranking (rule 3). Buckets a lead by how recent its trigger is,
@@ -119,6 +119,8 @@ function insertLead(runId, lead) {
     linkedin_status: lead.linkedin_status || null,
     source: lead.source || null,
     draft: lead.draft || null,
+    // Email drafts only. NULL on linkedin/x leads, which have no subject.
+    draft_subject: lead.draft_subject || null,
     confidence: lead.confidence || null,
   };
   // Quote every column so the "trigger" keyword is handled; status/notes/
@@ -185,9 +187,14 @@ function updateLeadForUser(id, userId, { status, notes }) {
 }
 
 // Replace the generated draft (and optional channel) after a redraft.
-function updateLeadDraft(id, { draft, channel, confidence }) {
+//
+// `subject` is written whenever the key is present, including as null: a redraft
+// from email to linkedin has no subject, and leaving the old email subject in
+// place would attach it to a message that cannot carry one.
+function updateLeadDraft(id, { draft, channel, confidence, subject } = {}) {
   const sets = ['draft = ?'];
   const vals = [draft];
+  if (subject !== undefined) { sets.push('draft_subject = ?'); vals.push(subject || null); }
   if (channel) { sets.push('channel = ?'); vals.push(channel); }
   if (confidence) { sets.push('confidence = ?'); vals.push(confidence); }
   vals.push(id);

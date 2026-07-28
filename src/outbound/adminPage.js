@@ -44,6 +44,10 @@ function renderOutboundBody(csrfToken) {
       .score-hi { background: rgba(16,185,129,0.16); color: #34D399; }
       .score-lo { background: rgba(255,255,255,0.06); color: var(--txt-2); }
       .ob-expand td { background: rgba(255,255,255,0.02); }
+      .ob-subject { display: flex; align-items: baseline; gap: 8px; background: var(--bg-2); border: 1px solid var(--border); border-bottom: none; border-radius: 9px 9px 0 0; padding: 10px 14px; }
+      .ob-subject-l { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--txt-3); font-weight: 700; flex: 0 0 auto; }
+      .ob-subject-v { font-size: 0.85rem; font-weight: 700; color: var(--txt); }
+      .ob-subject + .ob-draft { border-radius: 0 0 9px 9px; }
       .ob-draft { white-space: pre-wrap; font-family: inherit; font-size: 0.85rem; line-height: 1.55; background: var(--bg-2); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; margin: 0 0 12px; color: var(--txt); }
       .ob-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
       .ob-btn { height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--txt); font-weight: 600; font-size: 0.8rem; font-family: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
@@ -373,6 +377,14 @@ function renderOutboundBody(csrfToken) {
         if (lead.trigger_url) { var tl = document.createElement('a'); tl.className = 'ob-btn'; tl.href = lead.trigger_url; tl.target = '_blank'; tl.rel = 'noopener'; tl.textContent = 'Trigger source ↗'; meta.appendChild(tl); }
         td.appendChild(meta);
 
+        // Subject, above the body. Email drafts always have one; LinkedIn and X
+        // drafts have none, so the field is hidden rather than shown empty.
+        var subj = document.createElement('div'); subj.className = 'ob-subject';
+        var subjL = document.createElement('span'); subjL.className = 'ob-subject-l'; subjL.textContent = 'Subject';
+        var subjV = document.createElement('span'); subjV.className = 'ob-subject-v';
+        subj.appendChild(subjL); subj.appendChild(subjV);
+        td.appendChild(subj);
+
         // Draft
         var draft = document.createElement('div'); draft.className = 'ob-draft'; draft.textContent = lead.draft || '(no draft generated)';
         td.appendChild(draft);
@@ -386,6 +398,21 @@ function renderOutboundBody(csrfToken) {
         });
         actions.appendChild(copyBtn);
 
+        var copySubjBtn = document.createElement('button'); copySubjBtn.className = 'ob-btn'; copySubjBtn.type = 'button'; copySubjBtn.textContent = 'Copy subject';
+        copySubjBtn.addEventListener('click', function () {
+          navigator.clipboard.writeText(lead.draft_subject || '').then(function () { copySubjBtn.textContent = 'Copied ✓'; setTimeout(function () { copySubjBtn.textContent = 'Copy subject'; }, 1500); });
+        });
+        actions.appendChild(copySubjBtn);
+
+        // One place decides whether this lead shows a subject, so the draft and
+        // the redraft path can never disagree about it.
+        function renderSubject() {
+          var s = lead.draft_subject || '';
+          subjV.textContent = s;
+          subj.style.display = s ? '' : 'none';
+          copySubjBtn.style.display = s ? '' : 'none';
+        }
+
         if (lead.handle_or_email) {
           var open = document.createElement('a'); open.className = 'ob-btn'; open.target = '_blank'; open.rel = 'noopener';
           open.href = /^https?:/i.test(lead.handle_or_email) ? lead.handle_or_email : ('mailto:' + lead.handle_or_email);
@@ -393,11 +420,24 @@ function renderOutboundBody(csrfToken) {
           actions.appendChild(open);
         }
 
+        // Channel to redraft for. Email is what gets a drafted subject line;
+        // LinkedIn and X are body only.
+        var chanSel = document.createElement('select'); chanSel.style.width = 'auto'; chanSel.style.height = '34px';
+        ['linkedin', 'x', 'email'].forEach(function (c) {
+          var o = document.createElement('option'); o.value = c; o.textContent = c;
+          if (c === (lead.channel || 'linkedin')) o.selected = true;
+          chanSel.appendChild(o);
+        });
+        actions.appendChild(chanSel);
+
         var redraft = document.createElement('button'); redraft.className = 'ob-btn'; redraft.type = 'button'; redraft.textContent = 'Redraft';
         redraft.addEventListener('click', function () {
           redraft.disabled = true; redraft.textContent = 'Redrafting…';
-          api('POST', '/leads/' + lead.id + '/redraft', {}).then(function (data) {
+          api('POST', '/leads/' + lead.id + '/redraft', { channel: chanSel.value }).then(function (data) {
             lead.draft = data.lead.draft; draft.textContent = data.lead.draft || '(no draft)';
+            lead.draft_subject = data.lead.draft_subject;
+            lead.channel = data.lead.channel;
+            renderSubject();
           }).catch(function (e) { showError(e.message); }).then(function () { redraft.disabled = false; redraft.textContent = 'Redraft'; });
         });
         actions.appendChild(redraft);
@@ -420,6 +460,7 @@ function renderOutboundBody(csrfToken) {
         });
         td.appendChild(notes);
 
+        renderSubject();
         tr.appendChild(td);
         return tr;
       }

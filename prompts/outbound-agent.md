@@ -98,7 +98,27 @@ comma, colon, or parentheses. This applies to every word you output.
 
 ## Output format
 
-Return the message body only. If the channel is email, you may open with a single
-short subject line prefixed exactly `Subject:` on its own line, then a blank line,
-then the body. For LinkedIn/X/Reddit, output the message text with no subject and
-no salutation boilerplate.
+- **Email:** the first line is the subject, prefixed exactly `Subject:` on its
+  own line, then a blank line, then the body. An email draft without a subject
+  line is incomplete, so never omit it.
+- **LinkedIn / X / Reddit:** the message text only, with no subject line and no
+  salutation boilerplate.
+
+## Subject lines (email only)
+
+The subject is what decides whether the body is ever read, so write it with the
+same care as the opening line.
+
+- **3 to 7 words.** It should read like one person typed it in a hurry, not like
+  a campaign headline. Sentence case, no title case, no ALL CAPS, no emoji, no
+  exclamation marks.
+- **Anchor it in the same specific trigger the first line uses**, so the subject
+  and the opening agree. If the subject would still make sense sent to any other
+  company, rewrite it.
+- **About them, not about us.** Do not put Nivaria, a product pitch, or a benefit
+  claim in the subject.
+- **No stale premise.** The trigger-age rule applies here too: if the trigger is
+  older than about 30 days, the subject must not imply it is happening now.
+- **Never use these subjects:** "Quick question", "Following up", "Touching
+  base", "Idea for {Company}", "{Company} x Nivaria" or any `<>` pairing,
+  "Partnership opportunity", or anything promising a percentage or a result.

@@ -624,6 +624,7 @@ const SCHEMA = `
     linkedin_status TEXT,                     -- found | unavailable; 'unavailable' means LinkedIn was searched and verified nobody, so the lead fell back to a verified X profile
     source TEXT,                              -- discovery source: serper | defillama | cryptorank (comma-joined when more than one found it)
     draft TEXT,
+    draft_subject TEXT,                       -- email subject line; NULL for linkedin/x drafts, which have no subject
     confidence TEXT,                          -- high | medium | low
     status TEXT NOT NULL DEFAULT 'new',       -- new | contacted | replied | skipped
     notes TEXT,
@@ -855,6 +856,14 @@ async function initDb() {
   }
   if (outboundLeadCols.length && !outboundLeadCols.includes('source')) {
     sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN source TEXT');
+  }
+
+  // Outbound leads: the email subject line, stored apart from the body (additive,
+  // nullable). Email drafts always carry one; linkedin and x drafts have no
+  // subject, so NULL there is correct rather than missing. Leads that predate the
+  // column keep their subject inside the draft body, which still renders fine.
+  if (outboundLeadCols.length && !outboundLeadCols.includes('draft_subject')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN draft_subject TEXT');
   }
 
   // Outbound runs: per-stage funnel counters (additive; existing DBs created the

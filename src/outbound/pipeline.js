@@ -280,6 +280,8 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
     linkedin_status: person?.linkedin_status || (person?.channel === 'x' ? 'unavailable' : 'found'),
     source: company.discovery_source || 'serper',
     draft,
+    // Email drafts carry a subject of their own; linkedin and x drafts do not.
+    draft_subject: drafted?.subject || null,
     confidence,
   };
 }
@@ -340,10 +342,62 @@ function triggerAgeLine(triggerDate) {
   return `Trigger date: ${String(triggerDate).slice(0, 10)} (${days} days ago)`;
 }
 
+// Channels that carry a subject line. Everything else (linkedin, x, reddit) is a
+// message body only, so a subject is not just optional there, it is wrong.
+function isEmailChannel(channel) {
+  const c = String(channel || '').toLowerCase();
+  return c === 'email' || c === 'mail';
+}
+
+// Normalize one candidate subject line: drop a "Subject:" prefix, strip wrapping
+// quotes, collapse to a single line, and cap the length. Returns null if nothing
+// usable is left.
+function cleanSubjectLine(raw) {
+  let v = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
+  v = v.replace(/^subject\s*:\s*/i, '').trim();
+  v = v.replace(/^["'“‘]+/, '').replace(/["'”’]+$/, '').trim();
+  return v ? v.slice(0, 200) : null;
+}
+
+// The agent returns an email as a "Subject:" line, a blank line, then the body
+// (see prompts/outbound-agent.md). Split those apart so the subject is stored and
+// shown as its own field instead of living inside the body text. A draft with no
+// subject line comes back with subject null and the body untouched.
+function splitSubject(text) {
+  const full = String(text == null ? '' : text).replace(/^[\s﻿]+/, '').trim();
+  if (!full) return { subject: null, body: '' };
+  const lines = full.split(/\r?\n/);
+  if (!/^\s*subject\s*:/i.test(lines[0])) return { subject: null, body: full };
+  return { subject: cleanSubjectLine(lines[0]), body: lines.slice(1).join('\n').trim() };
+}
+
+// Email-only addendum to the drafting request. The system prompt already carries
+// the subject rules; this makes the requirement explicit for the one channel that
+// needs it, so a body-only response is the exception rather than the norm.
+const EMAIL_SUBJECT_ASK = 'This is an email, so the first line must be the subject, prefixed '
+  + 'exactly "Subject:", then a blank line, then the body. The subject is 3 to 7 words, tied to '
+  + 'this company\'s specific trigger, and about them rather than about Nivaria.\n';
+
+// Email drafts must never ship without a subject. If the model returned a body
+// with no "Subject:" line, ask once for the subject alone rather than storing an
+// email the operator cannot send as-is. Returns null when that call also fails.
+async function draftSubjectFor(baseUser, body) {
+  const user = baseUser
+    + '\nYou already wrote this body:\n' + String(body || '').slice(0, 1200)
+    + '\n\nReturn ONLY the subject line for that email. No "Subject:" prefix, no quotes, no '
+    + 'explanation, nothing else.';
+  const text = await draftCall({ system: getAgentPrompt(), user, maxTokens: 60 });
+  if (!text) return null;
+  const firstLine = String(text).split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
+  return cleanSubjectLine(firstLine);
+}
+
 // Anthropic drafting with the outbound agent as the system prompt. Runs the
-// output through the no-dash / no-connector sanitizer before returning.
+// output through the no-dash / no-connector sanitizer before returning, subject
+// line included (it is displayed and copied like any other model output).
 async function draftMessage(company, person, contact) {
   const channel = contact?.channel || person?.channel || 'linkedin';
+  const isEmail = isEmailChannel(channel);
   const user = 'Write one outreach message.\n'
     + `Channel: ${channel}\n`
     + `Company: ${company.company}\n`
@@ -351,16 +405,25 @@ async function draftMessage(company, person, contact) {
     + `Trigger: ${company.trigger || 'n/a'}\n`
     + `Trigger source: ${company.trigger_url || 'n/a'}\n`
     + `${triggerAgeLine(company.trigger_date)}\n`
-    + `Person: ${person?.person_name || 'unknown'} (${person?.person_title || 'unknown title'})\n`;
+    + `Person: ${person?.person_name || 'unknown'} (${person?.person_title || 'unknown title'})\n`
+    + (isEmail ? EMAIL_SUBJECT_ASK : '');
   const text = await draftCall({ system: getAgentPrompt(), user, maxTokens: 700 });
   if (!text) return null;
-  return { text: sanitizeCopy(text), confidence: undefined };
+  const { subject, body } = splitSubject(text);
+  const finalSubject = (isEmail && !subject) ? await draftSubjectFor(user, body) : subject;
+  return {
+    text: sanitizeCopy(body || text),
+    subject: sanitizeCopy(finalSubject) || null,
+    confidence: undefined,
+  };
 }
 
 // Re-run drafting for a single existing lead (redraft endpoint). Optional new
-// channel/angle. Returns the sanitized draft text or null.
+// channel/angle. Returns { text, subject, channel } (subject null off email), or
+// null when drafting is unavailable.
 async function redraftLead(lead, { channel, angle } = {}) {
   const ch = channel || lead.channel || 'linkedin';
+  const isEmail = isEmailChannel(ch);
   let user = 'Write one outreach message.\n'
     + `Channel: ${ch}\n`
     + `Company: ${lead.company}\n`
@@ -370,9 +433,12 @@ async function redraftLead(lead, { channel, angle } = {}) {
     + `${triggerAgeLine(lead.trigger_at)}\n`
     + `Person: ${lead.person_name || 'unknown'} (${lead.person_title || 'unknown title'})\n`;
   if (angle) user += `Angle to emphasize: ${String(angle).slice(0, 300)}\n`;
+  if (isEmail) user += EMAIL_SUBJECT_ASK;
   const text = await draftCall({ system: getAgentPrompt(), user, maxTokens: 700 });
   if (!text) return null;
-  return { text: sanitizeCopy(text), channel: ch };
+  const { subject, body } = splitSubject(text);
+  const finalSubject = (isEmail && !subject) ? await draftSubjectFor(user, body) : subject;
+  return { text: sanitizeCopy(body || text), subject: sanitizeCopy(finalSubject) || null, channel: ch };
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────────
@@ -411,6 +477,9 @@ function hasUsableContact(person, contact) {
 module.exports = {
   startRun, redraftLead, SCORE_THRESHOLD, HARD_CAP,
   freshnessBucket, selectTopLeads,
+  // Exported for tests: subject parsing runs on every email draft, so the
+  // "Subject:" split and the channel check are unit-testable without a model.
+  splitSubject, cleanSubjectLine, isEmailChannel,
   // Exported for tests: buildLead takes its provider as an argument, so the
   // gate order and the X-fallback accounting can be driven with a stub provider
   // and no network (see test-outbound-crypto.js).
