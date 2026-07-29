@@ -14,6 +14,7 @@ const { getProvider, OutboundConfigError, rolesForStage, classifyCompany } = req
 const { structuredCall, draftCall } = require('./ai');
 const { getAgentPrompt } = require('./agentPrompt');
 const { makeFunnel, formatFunnel, totalRejectedPeople, mergePersonCounts } = require('./funnel');
+const { estimateCompanySize } = require('./sizeGate');
 const { sanitizeCopy, sanitizeCopyDeep } = require('../lib/sanitizeText');
 const { sleep } = require('../lib/retry');
 
@@ -175,6 +176,24 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
     return null;
   }
 
+  // Buyer-size gate SECOND, and deliberately separate from the peer gate above:
+  // a company can be a perfect category and pain fit and still be far too big to
+  // be the buyer. Nivaria sells to small teams, so an enterprise that already
+  // affords Crayon or Klue is dropped here even though everything else fits.
+  // Running it before the people/contact/score/draft calls means an excluded
+  // company costs one search plus one model call instead of five.
+  //
+  // 'unknown' is KEPT and flagged, never dropped: a size we could not find is
+  // not evidence of a big company.
+  const size = await estimateCompanySize(provider, company);
+  if (size.band === 'too_large') {
+    if (funnel) funnel.too_large += 1;
+    console.log('[outbound.pipeline] too large (filtered): ' + JSON.stringify(company.company || '?')
+      + ' - ' + (size.reason || size.display || 'past the small-team buyer size'));
+    return null;
+  }
+  if (size.band === 'unknown' && funnel) funnel.size_unknown += 1;
+
   // People + contact (never fabricated). findPeople only returns a person whose
   // current employment at the company is verified (see provider.findPeople), and
   // it records the per-gate rejection reason into the funnel itself.
@@ -232,8 +251,10 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
   // email). No reachable contact means the company is dropped, never shown blank.
   if (!hasUsableContact(person, contact)) { if (funnel) funnel.no_contact += 1; return null; }
 
-  // Score on the rubric (fit 30 / pain 30 / reachability 20 / timing 20).
-  const scoreResult = await scoreCandidate(brief, company, person);
+  // Score on the rubric (fit 30 / pain 30 / reachability 20 / timing 20). The
+  // size estimate rides along so fit can reward a small team, but it never
+  // re-decides the gate: too-large companies never reach this line.
+  const scoreResult = await scoreCandidate(brief, company, person, size);
   const score = Number.isFinite(scoreResult?.score) ? scoreResult.score : 0;
   if (scoreLog) {
     scoreLog.push({
@@ -259,6 +280,13 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
     trigger: company.trigger,
     trigger_url: company.trigger_url,
     trigger_at: company.trigger_date || null,
+    // Buyer-size gate output, surfaced on the lead row so the thresholds can be
+    // calibrated by eye. size_band is 'fits', 'borderline', or 'unknown' here
+    // ('too_large' never persists, it returned above). size_estimate is the
+    // human line; size_details keeps the raw numbers behind it.
+    size_band: size.band,
+    size_estimate: size.display,
+    size_details: size.estimate,
     score,
     score_breakdown: scoreResult?.score_breakdown || {},
     why_now: scoreResult?.why_now || null,
@@ -289,10 +317,14 @@ async function buildLead(provider, brief, company, funnel, scoreLog) {
 // Anthropic scoring. Returns { score, score_breakdown, why_now, confidence }.
 // If the model is unavailable, returns a neutral score so the pipeline degrades
 // rather than dropping everything.
-async function scoreCandidate(brief, company, person) {
+async function scoreCandidate(brief, company, person, size) {
   const system = 'You score outbound leads for Nivaria, a competitor-intelligence app for SaaS '
     + 'sales and product-marketing teams. Score each candidate 0-100 as the sum of: fit (0-30), '
-    + 'pain (0-30), reachability (0-20), timing (0-20). Be strict. If the candidate itself BUILDS, '
+    + 'pain (0-30), reachability (0-20), timing (0-20). Be strict. Nivaria sells to SMALL teams: '
+    + 'bootstrapped and indie companies, agencies, and pre-seed to Series A startups. The bigger '
+    + 'and better funded the company, the LOWER the fit sub-score, because a large or heavily '
+    + 'funded company buys an enterprise competitive-intelligence suite instead. If the candidate '
+    + 'itself BUILDS, '
     + 'SHIPS, or SELLS competitor-analysis, competitor-tracking, price-monitoring, or '
     + 'market-intelligence capability (as a core product OR as a feature of a different core '
     + 'business), it is a peer, not a prospect: score it near 0. Shipping such a feature is a '
@@ -309,6 +341,8 @@ async function scoreCandidate(brief, company, person) {
       company: company.company, category: company.category, stage_size: company.stage_size,
       region: company.region, trigger: company.trigger, trigger_url: company.trigger_url,
       trigger_date: company.trigger_date || null,
+      size_estimate: size?.display || 'Size unknown',
+      size_band: size?.band || 'unknown',
       person: person ? { title: person.person_title, seniority: person.person_seniority } : null,
     })
     + '\n\nReturn: { "score": int 0-100, "score_breakdown": { "fit": int, "pain": int, '

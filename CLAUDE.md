@@ -49,6 +49,10 @@ context (`", "` is the safe programmatic default). Replace a connector-plus with
      kept in sync with the canonical `" and "` replacement).
    - `src/briefingDispatch.js` — `sanitizeCopy` over each condensed pre-meeting
      talking point.
+   - `src/outbound/sizeGate.js` — `sanitizeCopy` over the buyer-size estimate's
+     model-written fields (`last_round`, `basis`, the employee band) in
+     `normalizeEstimate`, and over the assembled size line in
+     `formatSizeEstimate`, because both render on the lead row.
    - `src/routes/legal.js` — `stripDashes` over the rendered legal article HTML
      (the source docs are third-party boilerplate we extract verbatim).
 

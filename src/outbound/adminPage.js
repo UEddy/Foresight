@@ -68,6 +68,11 @@ function renderOutboundBody(csrfToken) {
       .ob-stat-l { font-size: 0.7rem; color: var(--txt-3); margin-top: 3px; }
       .ob-funnel-break { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
       .ob-break-chip { font-size: 0.72rem; color: var(--txt-2); background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 999px; padding: 3px 9px; }
+      .size-chip { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: 999px; padding: 2px 8px; }
+      .size-fits { background: rgba(16,185,129,0.16); color: #34D399; }
+      .size-borderline { background: rgba(245,158,11,0.18); color: #FBBF24; }
+      .size-unknown { background: rgba(255,255,255,0.06); color: var(--txt-3); }
+      .size-line { color: var(--txt-2); font-size: 0.75rem; margin-top: 4px; }
     </style>
 
     <div id="ob-error" class="note note-err"></div>
@@ -251,6 +256,8 @@ function renderOutboundBody(csrfToken) {
           row.appendChild(funnelStat('Unfit category', f.crypto_unfit_category, 'drop'));
         }
         row.appendChild(funnelStat('Peers', f.peer, 'drop'));
+        row.appendChild(funnelStat('Too large', f.too_large, 'drop'));
+        if (f.size_unknown) row.appendChild(funnelStat('Size unknown', f.size_unknown));
         row.appendChild(funnelStat('No person', f.no_person, 'drop'));
         row.appendChild(funnelStat('People rejected', rejTotal, 'drop'));
         if (f.x_fallback_used) row.appendChild(funnelStat('Found on X', f.x_fallback_used, 'kept'));
@@ -296,6 +303,19 @@ function renderOutboundBody(csrfToken) {
 
       function scoreClass(s) { if (s >= 80) return 'score-badge score-hi'; if (s < 60) return 'score-badge score-lo'; return 'score-badge'; }
 
+      // Buyer-size band chip. 'fits' is a small-team buyer, 'borderline' is the
+      // grey zone kept for review, 'unknown' means the size was not findable and
+      // the lead was kept and flagged. Leads from before the gate show as not
+      // assessed rather than pretending to a verdict.
+      var SIZE_LABELS = { fits: 'Fits', borderline: 'Borderline', unknown: 'Size unknown' };
+      function sizeChip(band) {
+        var key = SIZE_LABELS[band] ? band : 'unknown';
+        var chip = document.createElement('span');
+        chip.className = 'size-chip size-' + key;
+        chip.textContent = band ? SIZE_LABELS[key] : 'Not assessed';
+        return chip;
+      }
+
       function renderLeads(leads) {
         var wrap = el('ob-leads-wrap');
         wrap.textContent = '';
@@ -303,7 +323,7 @@ function renderOutboundBody(csrfToken) {
 
         var table = document.createElement('table');
         var thead = document.createElement('thead');
-        thead.innerHTML = '<tr><th>Score</th><th>Company</th><th>Why now</th><th>Person</th><th>Channel</th><th></th></tr>';
+        thead.innerHTML = '<tr><th>Score</th><th>Company</th><th>Size</th><th>Why now</th><th>Person</th><th>Channel</th><th></th></tr>';
         table.appendChild(thead);
         var tbody = document.createElement('tbody');
 
@@ -319,6 +339,16 @@ function renderOutboundBody(csrfToken) {
           var sub = document.createElement('div'); sub.className = 'ob-run-meta';
           sub.textContent = [lead.category, lead.region].filter(Boolean).join(' · ');
           tdCo.appendChild(co); tdCo.appendChild(sub);
+
+          // Buyer-size gate, shown on every row so the thresholds can be
+          // calibrated by eye: the band it was judged, then the estimate behind
+          // it. A lead with no findable size reads "Size unknown" and is kept,
+          // never silently dropped.
+          var tdSize = document.createElement('td');
+          tdSize.appendChild(sizeChip(lead.size_band));
+          var sizeLine = document.createElement('div'); sizeLine.className = 'size-line';
+          sizeLine.textContent = lead.size_estimate || 'Not assessed';
+          tdSize.appendChild(sizeLine);
 
           var tdWhy = document.createElement('td');
           var why = document.createElement('div'); why.className = 'why-now'; why.textContent = lead.why_now || lead.trigger || '';
@@ -336,7 +366,7 @@ function renderOutboundBody(csrfToken) {
           var caret = document.createElement('span'); caret.className = 'ob-caret'; caret.textContent = '▶ expand';
           tdCaret.appendChild(caret);
 
-          tr.appendChild(tdScore); tr.appendChild(tdCo); tr.appendChild(tdWhy); tr.appendChild(tdPerson); tr.appendChild(tdChan); tr.appendChild(tdCaret);
+          tr.appendChild(tdScore); tr.appendChild(tdCo); tr.appendChild(tdSize); tr.appendChild(tdWhy); tr.appendChild(tdPerson); tr.appendChild(tdChan); tr.appendChild(tdCaret);
 
           var expand = buildExpandRow(lead);
           expand.style.display = 'none';
@@ -358,7 +388,7 @@ function renderOutboundBody(csrfToken) {
 
       function buildExpandRow(lead) {
         var tr = document.createElement('tr'); tr.className = 'ob-expand';
-        var td = document.createElement('td'); td.colSpan = 6;
+        var td = document.createElement('td'); td.colSpan = 7;
 
         // Contact status + trigger link
         var meta = document.createElement('div'); meta.style.marginBottom = '10px'; meta.className = 'ob-actions';
@@ -373,6 +403,14 @@ function renderOutboundBody(csrfToken) {
           meta.appendChild(ls);
         }
         if (lead.source) { var sp = document.createElement('span'); sp.className = 'ob-run-meta'; sp.textContent = 'source: ' + lead.source; meta.appendChild(sp); }
+        // What the size gate actually read, so a wrong-looking verdict can be
+        // traced to its evidence instead of being guessed at.
+        if (lead.size_details && lead.size_details.basis) {
+          var sb = document.createElement('span'); sb.className = 'ob-run-meta';
+          sb.textContent = 'size basis: ' + lead.size_details.basis
+            + ' (' + (lead.size_details.confidence || 'low') + ' confidence)';
+          meta.appendChild(sb);
+        }
         if (lead.confidence) { var cf = document.createElement('span'); cf.className = 'ob-run-meta'; cf.textContent = 'confidence ' + lead.confidence; meta.appendChild(cf); }
         if (lead.trigger_url) { var tl = document.createElement('a'); tl.className = 'ob-btn'; tl.href = lead.trigger_url; tl.target = '_blank'; tl.rel = 'noopener'; tl.textContent = 'Trigger source ↗'; meta.appendChild(tl); }
         td.appendChild(meta);

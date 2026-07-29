@@ -59,6 +59,8 @@ function makeFunnel() {
     discovered_raw: 0,     // candidates the model proposed, before dedupe
     after_dedupe: 0,       // survivors of dedupe and the exclusion rules
     peer: 0,               // companies filtered as peers (they sell competitor monitoring)
+    too_large: 0,          // companies dropped by the buyer-size gate (see sizeGate.js)
+    size_unknown: 0,       // companies KEPT with no findable size, flagged not dropped
     no_person: 0,          // companies where findPeople returned no person at all
     rejected,              // people rejected, counted per gate (see REJECTION_REASONS)
     no_contact: 0,         // companies dropped for no usable contact
@@ -127,6 +129,7 @@ function formatFunnel(funnel, runId) {
   lines.push('  ' + pad('discovered (raw)') + f.discovered_raw);
   lines.push('  ' + pad('after dedupe/exclusion') + f.after_dedupe);
   lines.push('  ' + pad('peers filtered') + (f.peer || 0));
+  lines.push('  ' + pad('too large (buyer size)') + (f.too_large || 0));
   // Crypto discovery block, printed only for a web3 run so every other run's
   // log is unchanged.
   if (f.crypto_raises_fetched) {
@@ -144,6 +147,7 @@ function formatFunnel(funnel, runId) {
     lines.push('    ' + (REJECTION_LABELS[r] + ':').padEnd(34) + (f.rejected[r] || 0));
   }
   if (f.x_fallback_used) lines.push('  ' + pad('found on X (no LinkedIn)') + f.x_fallback_used);
+  if (f.size_unknown) lines.push('  ' + pad('size unknown (kept)') + f.size_unknown);
   lines.push('  ' + pad('no usable contact') + f.no_contact);
   lines.push('  ' + pad('below score threshold') + f.below_threshold);
   lines.push('  ' + pad('capped (over target)') + (f.capped || 0));

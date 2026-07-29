@@ -611,6 +611,9 @@ const SCHEMA = `
     "trigger" TEXT,
     trigger_url TEXT,
     trigger_at DATETIME,                      -- when the trigger happened; drives freshness-first ranking
+    size_band TEXT,                           -- buyer-size gate verdict: fits | borderline | unknown ('too_large' never persists, it is dropped)
+    size_estimate TEXT,                       -- human size line shown on the lead row, e.g. "Seed, 11-50 people, $4M raised"
+    size_details TEXT,                        -- JSON: { employees, employees_band, total_funding_usd, last_round, valuation_usd, gtm_maturity, confidence, basis }
     score INTEGER DEFAULT 0,
     score_breakdown TEXT,                     -- JSON: { fit, pain, reachability, timing }
     why_now TEXT,
@@ -864,6 +867,20 @@ async function initDb() {
   // column keep their subject inside the draft body, which still renders fine.
   if (outboundLeadCols.length && !outboundLeadCols.includes('draft_subject')) {
     sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN draft_subject TEXT');
+  }
+
+  // Outbound leads: the buyer-size gate's estimate (additive, nullable). Nivaria
+  // sells to small teams, so each lead records the size and stage it was judged
+  // on (see src/outbound/sizeGate.js), which is what makes the gate calibratable
+  // by eye. NULL on leads that predate the gate: their size was never assessed.
+  if (outboundLeadCols.length && !outboundLeadCols.includes('size_band')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN size_band TEXT');
+  }
+  if (outboundLeadCols.length && !outboundLeadCols.includes('size_estimate')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN size_estimate TEXT');
+  }
+  if (outboundLeadCols.length && !outboundLeadCols.includes('size_details')) {
+    sqlDb.run('ALTER TABLE outbound_leads ADD COLUMN size_details TEXT');
   }
 
   // Outbound runs: per-stage funnel counters (additive; existing DBs created the

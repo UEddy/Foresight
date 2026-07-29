@@ -69,7 +69,9 @@ function hydrateRun(row) {
 
 const LEAD_INSERT_COLS = [
   'run_id', 'company', 'domain', 'category', 'stage_size', 'region',
-  'trigger', 'trigger_url', 'trigger_at', 'score', 'score_breakdown', 'why_now',
+  'trigger', 'trigger_url', 'trigger_at',
+  'size_band', 'size_estimate', 'size_details',
+  'score', 'score_breakdown', 'why_now',
   'person_name', 'person_title', 'person_seniority',
   'channel', 'handle_or_email', 'contact_status', 'backup_channel',
   'linkedin_status', 'source',
@@ -106,6 +108,11 @@ function insertLead(runId, lead) {
     trigger: lead.trigger || null,
     trigger_url: lead.trigger_url || null,
     trigger_at: lead.trigger_at || null,
+    // Buyer-size gate (see sizeGate.js). A lead that reached persistence is
+    // never 'too_large', so the band here is fits, borderline, or unknown.
+    size_band: lead.size_band || null,
+    size_estimate: lead.size_estimate || null,
+    size_details: lead.size_details ? JSON.stringify(lead.size_details) : null,
     score: Number.isFinite(lead.score) ? Math.round(lead.score) : 0,
     score_breakdown: JSON.stringify(lead.score_breakdown || {}),
     why_now: lead.why_now || null,
@@ -202,7 +209,13 @@ function updateLeadDraft(id, { draft, channel, confidence, subject } = {}) {
 }
 
 function hydrateLead(row) {
-  return { ...row, score_breakdown: parseJson(row.score_breakdown, {}) };
+  return {
+    ...row,
+    score_breakdown: parseJson(row.score_breakdown, {}),
+    // null (not {}) on leads that predate the size gate, so the UI can tell
+    // "no size was ever assessed" apart from "assessed and found nothing".
+    size_details: parseJson(row.size_details, null),
+  };
 }
 
 module.exports = {
