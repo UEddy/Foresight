@@ -670,7 +670,7 @@ function classifyScrapeError(err, url) {
   //    not an active defense, so it falls through to EMPTY_CONTENT below.
   if (code === 'BLOCKED_PAGE' && !/javascript/i.test(err.reason || message)) {
     return make('ANTI_BOT', 'anti_bot',
-      "This site has anti-bot protection. Nivaria can't monitor sites with active bot defense systems on Free/Pro tiers. Business tier (coming soon) will support these.");
+      "This site has anti-bot protection. Nivaria can't monitor sites with active bot defense systems on your current plan. Business tier (coming soon) will support these.");
   }
 
   // 6. Selector matched nothing — page loaded, the user's CSS selector didn't.
