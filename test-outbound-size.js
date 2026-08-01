@@ -19,7 +19,7 @@ const assert = require('assert');
 const {
   classifySizeFromFields, decideSize, normalizeEstimate, formatSizeEstimate,
   estimateCompanySize, parseMoneyUsd, parseEmployeeCount, employeesFromText,
-  valuationFromText, worseBand, formatUsdShort, sizeQuery,
+  valuationFromText, worseBand, formatUsdShort, sizeQuery, matchKnownTooLarge,
 } = require('./src/outbound/sizeGate');
 const { buildLead } = require('./src/outbound/pipeline');
 const { makeFunnel } = require('./src/outbound/funnel');
@@ -93,11 +93,32 @@ check('a known large company is excluded for free', () => {
   assert.ok(/ramp/i.test(r.reason), 'reason names the match: ' + r.reason);
 });
 
-check('the known-large list matches whole words only', () => {
+check('the known-large list matches the WHOLE name, not a word inside it', () => {
   eq(classifySizeFromFields({ company: 'Rampart Labs', category: 'Dev tools' }).band, 'unknown',
     'Rampart is not Ramp');
   eq(classifySizeFromFields({ company: 'Blockstream', category: 'Bitcoin infra' }).band, 'unknown',
     'Block is not Blockstream');
+  // A third of the list is ordinary English words. Word-boundary matching used
+  // to hard-drop these small companies for free, before any research ran.
+  eq(classifySizeFromFields({ company: 'Wise Systems', category: 'Logistics' }).band, 'unknown',
+    'Wise Systems is not Wise');
+  eq(classifySizeFromFields({ company: 'Segment Labs', category: 'Analytics' }).band, 'unknown',
+    'Segment Labs is not Segment');
+  eq(classifySizeFromFields({ company: 'Circle Medical', category: 'Health' }).band, 'unknown',
+    'Circle Medical is not Circle');
+  eq(classifySizeFromFields({ company: 'Drift Studio', category: 'Design agency' }).band, 'unknown',
+    'Drift Studio is not Drift');
+  eq(classifySizeFromFields({ company: 'Lattice Coffee', category: 'Commerce' }).band, 'unknown');
+});
+
+check('a legal suffix or a bare TLD does not hide a known large company', () => {
+  eq(matchKnownTooLarge('HubSpot, Inc.'), 'hubspot');
+  eq(matchKnownTooLarge('Salesforce.com'), 'salesforce');
+  eq(matchKnownTooLarge('Monday'), 'monday.com', 'the entry carries the TLD, the name may not');
+  eq(matchKnownTooLarge('Stripe Ltd'), 'stripe');
+  eq(matchKnownTooLarge('New Relic'), 'new relic');
+  eq(matchKnownTooLarge('Boxcast'), null);
+  eq(matchKnownTooLarge('Notionally'), null);
 });
 
 check('a late-stage stage_size is excluded (the $2B CRM case)', () => {
@@ -160,7 +181,25 @@ check('Series C and beyond is excluded', () => {
 check('mega funding and unicorn valuations are excluded', () => {
   eq(decideSize(est({ total_funding_usd: 150000000 })).band, 'too_large');
   eq(decideSize(est({ valuation_usd: 2000000000 })).band, 'too_large');
-  eq(decideSize(est({ total_funding_usd: 30000000 })).band, 'borderline', '$30M is the grey zone');
+  eq(decideSize(est({ total_funding_usd: 60000000 })).band, 'borderline', '$60M is the grey zone');
+});
+
+// The ceiling used to sit at $25M borderline, $75M exclude, $250M valuation,
+// which hard-excluded ordinary Series B companies the round rule was keeping.
+// Money now only excludes past-Series-B raises and unicorn valuations.
+check('normal Series B money is KEPT, not excluded', () => {
+  eq(decideSize(est({ total_funding_usd: 40000000 })).band, 'fits', '$40M is a Series B raise');
+  eq(decideSize(est({ valuation_usd: 600000000 })).band, 'unknown',
+    'a $600M valuation is not a unicorn and is not a size signal on its own');
+  eq(decideSize(est({
+    last_round: 'Series B', employees: 180, total_funding_usd: 55000000, valuation_usd: 500000000,
+  })).band, 'borderline', 'the whole Series B profile is kept and flagged');
+});
+
+check('the enterprise tier is still excluded', () => {
+  eq(decideSize(est({ valuation_usd: 1200000000 })).band, 'too_large', 'a unicorn');
+  eq(decideSize(est({ employees: 4000 })).band, 'too_large', 'thousands of employees');
+  eq(decideSize(est({ last_round: 'Series D', employees: 30 })).band, 'too_large');
 });
 
 check('a small team at a big company is still excluded (worst signal wins)', () => {
@@ -183,9 +222,12 @@ check('a well-funded crypto project with a tiny team is KEPT', () => {
   eq(decideSize(e, { crypto: true }).band, 'fits', 'raise size must not gate crypto');
 });
 
-check('the same numbers OUTSIDE crypto are excluded', () => {
+check('the same numbers OUTSIDE crypto are flagged, and unicorn money still excludes', () => {
   const e = normalizeEstimate({ employees: 6, last_round: 'Series B', total_funding_usd: 45000000, valuation_usd: 400000000 });
-  eq(decideSize(e).band, 'too_large', 'a $400M valuation excludes a non-crypto company');
+  eq(decideSize(e).band, 'borderline', 'Series B money flags a non-crypto company, it no longer drops it');
+  const big = normalizeEstimate({ employees: 6, total_funding_usd: 200000000, valuation_usd: 3000000000 });
+  eq(decideSize(big).band, 'too_large', 'unicorn money still excludes a non-crypto company');
+  eq(decideSize(big, { crypto: true }).band, 'fits', 'the same money never excludes a crypto team');
 });
 
 check('crypto headcount still excludes', () => {

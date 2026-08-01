@@ -86,5 +86,34 @@ is({ company: 'TierUp', category: 'SaaS',
      trigger: 'Relaunched their pricing page with a new Starter tier' },
    'prospect', 'a pricing-page relaunch is a prospect');
 
+// ── the vendor NAME check matches the whole name, never a word inside it ──────
+// Several entries on the known-vendor list are ordinary words or common company
+// names ('gong', 'wiser', 'elliptic', 'nektar', 'crayon'). Substring matching
+// filtered these real prospects as peers before they reached any other check.
+
+is({ company: 'Elliptic Labs', category: 'Sensor software',
+     trigger: 'Founder tracks rival sensor vendors in a spreadsheet' },
+   'prospect', 'Elliptic Labs is not Elliptic');
+
+is({ company: 'Gong Labs', category: 'B2B SaaS',
+     trigger: 'Opened a product marketing role' },
+   'prospect', 'Gong Labs is not Gong');
+
+is({ company: 'Crayon Data', category: 'Personalization AI',
+     trigger: 'Losing deals to a rival and comparing them by hand' },
+   'prospect', 'Crayon Data is not Crayon');
+
+is({ company: 'Wiser Systems', category: 'Indoor location tracking',
+     trigger: 'Launched a new pricing page' },
+   'prospect', 'Wiser Systems is not Wiser');
+
+// The real vendors are still caught, including the forms they go by.
+is({ company: 'Gong.io', category: 'Revenue intelligence', trigger: 'Quarterly update' },
+   'peer', 'Gong.io is still the vendor Gong');
+is({ company: 'Semrush, Inc.', category: 'SEO', trigger: 'Quarterly update' },
+   'peer', 'a legal suffix does not hide a vendor');
+is({ company: 'Arkham Intelligence', category: 'Crypto', trigger: 'Raised a round' },
+   'peer', 'the vendor full name is listed too');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

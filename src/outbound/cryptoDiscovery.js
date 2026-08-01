@@ -31,6 +31,7 @@ const {
   formatUsd, CryptoSourceError, DEFILLAMA_RAISES_PAGE,
 } = require('./cryptoSources');
 const { structuredCall } = require('./ai');
+const { matchKnownName } = require('./companyName');
 
 // Six months, matching the freshness window the rest of the pipeline uses
 // (store.freshnessRank treats a trigger older than 180 days as stale).
@@ -58,27 +59,31 @@ const CRYPTO_PEER_CATEGORY_RE = new RegExp(
   'i',
 );
 
-// Named crypto data/intelligence products. Matched on a word boundary against
-// the project name, in the same spirit as provider.KNOWN_PEER_VENDORS.
+// Named crypto data/intelligence products. Matched on the WHOLE normalized
+// project name, in the same spirit as provider.KNOWN_PEER_VENDORS and for the
+// same reason (see companyName.js): 'dune', 'artemis', 'parsec', 'elliptic',
+// 'arkham', and 'kaito' are ordinary words, and word-boundary matching was
+// screening out real prospects like "Dune Security" and "Artemis Health" as
+// peers. The category check below still catches an analytics vendor this list
+// does not name.
+// Because the match is on the whole name, every form a vendor actually goes by
+// has to be listed: "Arkham" and "Arkham Intelligence" are both the peer, while
+// "Arkham Capital" is not. Adding an alias here is cheap; widening the match
+// back to substrings is not.
 const CRYPTO_PEER_NAMES = [
-  'nansen', 'dune', 'arkham', 'messari', 'kaito', 'token terminal',
-  'glassnode', 'santiment', 'chainalysis', 'elliptic', 'trm labs', 'nansen ai',
-  'defillama', 'defi llama', 'artemis', 'parsec', 'dappradar', 'footprint analytics',
+  'nansen', 'nansen ai', 'dune', 'dune analytics', 'arkham', 'arkham intelligence',
+  'messari', 'kaito', 'kaito ai', 'token terminal', 'glassnode', 'santiment',
+  'chainalysis', 'elliptic', 'trm labs', 'defillama', 'defi llama', 'artemis',
+  'artemis analytics', 'parsec', 'parsec finance', 'dappradar', 'footprint analytics',
   'lunarcrush', 'coingecko', 'coinmarketcap', 'cryptorank', 'rootdata',
 ];
-
-function escapeRegexWord(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 // True when a raise record is a data / analytics / monitoring vendor, i.e. a
 // peer that would never buy competitor monitoring because it sells the genre.
 function isCryptoPeer(rec) {
-  const name = String(rec?.name || '').toLowerCase();
-  for (const v of CRYPTO_PEER_NAMES) {
-    if (new RegExp('\\b' + escapeRegexWord(v) + '\\b', 'i').test(name)) {
-      return { peer: true, reason: 'crypto data or intelligence vendor (' + v + ')' };
-    }
+  const known = matchKnownName(rec?.name, CRYPTO_PEER_NAMES);
+  if (known) {
+    return { peer: true, reason: 'crypto data or intelligence vendor (' + known + ')' };
   }
   const category = String(rec?.category || '');
   if (category && CRYPTO_PEER_CATEGORY_RE.test(category)) {

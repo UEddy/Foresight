@@ -12,12 +12,19 @@
 // category and pain fit and still be far too big to buy, so the gates never
 // share a decision or a counter.
 //
-// Bands (BAND_RANK orders them, worst wins when two signals disagree):
+// Bands (BAND_RANK orders them, worst wins when two signals disagree). Only
+// too_large is DROPPED; fits, borderline, and unknown are all kept:
 //   fits       small team, indie or bootstrapped, pre-seed to Series A
-//   borderline the grey zone (Series B, roughly 100 to 250 people): kept, flagged
+//   borderline the grey zone (Series B, roughly 100 to 250 people, up to $150M
+//              raised): kept, flagged
 //   unknown    the evidence does not support an estimate: KEPT and flagged,
 //              never dropped, because a missing number is not a big company
-//   too_large  Series C and beyond, unicorn, public, or clearly enterprise scale
+//   too_large  the clearly enterprise tier only: Series C and beyond, unicorn
+//              valuation, public, thousands of employees, a named enterprise logo
+//
+// The gate is tuned to exclude Crayon's and Klue's buyers, NOT everyone above a
+// startup. Anything short of that evidence has to be kept, because a lead we
+// keep and flag costs a glance and a lead we drop is gone.
 //
 // Crypto exception (source_kind 'crypto'): raise size is NOT a size signal. A
 // protocol that raised $40M is routinely five people in a Discord, so for those
@@ -29,6 +36,7 @@
 
 const { structuredCall } = require('./ai');
 const { sanitizeCopy } = require('../lib/sanitizeText');
+const { normalizeCompanyName, matchKnownName } = require('./companyName');
 
 // Worst band wins when signals disagree. 'unknown' ranks lowest so a real
 // estimate from either source always beats "we could not tell".
@@ -41,14 +49,30 @@ const EMPLOYEES_FIT_MAX = 100;
 const EMPLOYEES_EXCLUDE_MIN = 250;
 
 // Funding and valuation thresholds (never applied to crypto candidates).
-const FUNDING_BORDERLINE_USD = 25e6;
-const FUNDING_EXCLUDE_USD = 75e6;
-const VALUATION_EXCLUDE_USD = 250e6;
+//
+// These are deliberately set ABOVE normal Series B territory. The old ceiling
+// ($25M borderline, $75M exclude, $250M valuation) contradicted the round rule
+// directly: a Series B company is routinely $40M to $60M raised at a $300M to
+// $600M valuation, so the money test hard-excluded the exact companies the round
+// test was keeping, and the gate returned near-zero leads. The exclusion line is
+// now drawn at the clearly-enterprise tier instead: past-Series-B money, and a
+// unicorn valuation.
+const FUNDING_BORDERLINE_USD = 50e6;
+const FUNDING_EXCLUDE_USD = 150e6;
+const VALUATION_EXCLUDE_USD = 1e9;
 
-// Companies that are unambiguously past the buyer size. Matched on the company
-// name as a whole word, so this is a free exclusion that costs no search and no
-// model call. Every entry here is large by HEADCOUNT as well as by funding, so
-// the list applies to crypto candidates too without breaking the crypto rule.
+// Companies that are unambiguously past the buyer size. This is a free
+// exclusion that costs no search and no model call. Every entry here is large by
+// HEADCOUNT as well as by funding, so the list applies to crypto candidates too
+// without breaking the crypto rule.
+//
+// Matched on the WHOLE company name, not on a word inside it (see
+// companyName.js): a third of these entries are ordinary English words
+// ('block', 'box', 'square', 'circle', 'drift', 'segment', 'notion', 'wise',
+// 'lattice', 'elastic'), and word-boundary matching was silently hard-dropping
+// small companies like "Wise Systems" or "Segment Labs" before they ever reached
+// research. A name that merely CONTAINS an entry now costs one search and is
+// sized up on its own evidence.
 const KNOWN_TOO_LARGE = [
   // Fintech and payments
   'ramp', 'brex', 'stripe', 'plaid', 'adyen', 'revolut', 'wise', 'chime', 'block',
@@ -91,8 +115,10 @@ const SCALE_TOO_LARGE_RE = /\b(?:unicorn|decacorn|fortune\s*500|multinational|pu
 // "valued at $2B", "$1.4 billion valuation".
 const VALUATION_TEXT_RE = /(?:valu\w*\s*(?:at|of)?\s*\$?\s*([\d.,]+)\s*(k|m|b|thousand|million|billion)\b)|(?:\$?\s*([\d.,]+)\s*(k|m|b|thousand|million|billion)\s*valuation)/i;
 
-function escapeRegexWord(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Does this company name BE one of the known-large companies (rather than merely
+// contain one)? See companyName.js for why the whole name has to match.
+function matchKnownTooLarge(name) {
+  return matchKnownName(name, KNOWN_TOO_LARGE);
 }
 
 // The worse (higher-ranked) of two bands. Used to combine the free field-based
@@ -185,12 +211,10 @@ function classifySizeFromFields(company) {
   let band = 'unknown';
   const bump = (b, why) => { band = worseBand(band, b); if (why) reasons.push(why); };
 
-  const nameL = name.toLowerCase();
-  for (const v of KNOWN_TOO_LARGE) {
-    if (new RegExp('\\b' + escapeRegexWord(v) + '\\b', 'i').test(nameL)) {
-      signals.known_large = v;
-      return { band: 'too_large', reason: 'known large company (' + v + ')', signals };
-    }
+  const known = matchKnownTooLarge(name);
+  if (known) {
+    signals.known_large = known;
+    return { band: 'too_large', reason: 'known large company (' + known + ')', signals };
   }
 
   // stage_size and category are the discovery model's own words about size, so
@@ -364,13 +388,15 @@ function sizeQuery(company) {
 }
 
 const ESTIMATE_SYSTEM = 'You size up companies for Nivaria, a competitor-intelligence app whose '
-  + 'buyer is a SMALL team: bootstrapped and indie software companies, agencies, and pre-seed to '
-  + 'Series A startups, roughly under 50 to 100 people. Companies at Series C and beyond, '
-  + 'unicorns, and public companies are NOT the buyer: they can already afford enterprise '
-  + 'competitive-intelligence tools. Estimate size and stage from the evidence provided. NEVER '
-  + 'invent a number: if the evidence does not support an estimate, return null for that field and '
-  + 'set confidence to "low". Return JSON only. Never use em-dashes, en-dashes, or a connecting '
-  + '"+"; write "and" instead.';
+  + 'buyer is a SMALL team: bootstrapped and indie software companies, agencies, and startups from '
+  + 'pre-seed through Series B, up to roughly 200 to 250 people. Only the clearly enterprise tier '
+  + 'is out of scope: Series C and beyond, unicorns, public companies, and companies with '
+  + 'thousands of employees, which can already afford enterprise competitive-intelligence tools. '
+  + 'Estimate size and stage from the evidence provided. NEVER invent a number: if the evidence '
+  + 'does not support an estimate, return null for that field and set confidence to "low". A '
+  + 'company you cannot size is UNKNOWN, not big: most small companies have thin public data, so '
+  + 'never guess a large headcount, round, or valuation to fill a gap. Return JSON only. Never use '
+  + 'em-dashes, en-dashes, or a connecting "+"; write "and" instead.';
 
 const CRYPTO_SIZE_NOTE = '\n\nThis is a crypto and web3 project. Judge its size by TEAM HEADCOUNT '
   + 'and go-to-market maturity ONLY. A large raise does not mean a large company: well funded '
@@ -448,6 +474,7 @@ module.exports = {
   estimateCompanySize, classifySizeFromFields, decideSize, normalizeEstimate,
   formatSizeEstimate, formatUsdShort, worseBand, isCryptoCandidate, sizeQuery,
   parseMoneyUsd, parseEmployeeCount, employeesFromText, valuationFromText,
+  normalizeCompanyName, matchKnownTooLarge,
   BAND_RANK, KNOWN_TOO_LARGE,
   EMPLOYEES_FIT_MAX, EMPLOYEES_EXCLUDE_MIN,
   FUNDING_BORDERLINE_USD, FUNDING_EXCLUDE_USD, VALUATION_EXCLUDE_USD,

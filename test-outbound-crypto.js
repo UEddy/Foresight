@@ -212,6 +212,25 @@ check('an ordinary DeFi project is not a peer', () => {
   assert.strictEqual(isCryptoPeer({ name: 'Ethena', category: 'Stablecoin' }).peer, false);
 });
 
+// The peer name check matches the WHOLE name. Half this list is ordinary words
+// ('dune', 'artemis', 'parsec', 'elliptic', 'arkham'), and word-boundary
+// matching was screening out real prospects that merely share one.
+check('a project that only SHARES a word with a data vendor is not a peer', () => {
+  for (const name of ['Dune Security', 'Artemis Health', 'Parsec Labs', 'Elliptic Labs',
+    'Arkham Capital', 'Kaito Games']) {
+    assert.strictEqual(isCryptoPeer({ name, category: 'DeFi' }).peer, false,
+      name + ' should not be a peer');
+  }
+});
+
+check('vendor aliases and legal suffixes are still caught', () => {
+  for (const name of ['Nansen AI', 'Dune Analytics', 'Arkham Intelligence', 'Kaito AI',
+    'Messari, Inc.', 'DefiLlama']) {
+    assert.strictEqual(isCryptoPeer({ name, category: 'DeFi' }).peer, true,
+      name + ' should be a peer');
+  }
+});
+
 check('the shared peer classifier also catches crypto data vendors from search', () => {
   eq(classifyCompany({ company: 'Nansen', category: 'Crypto', trigger: 'Raised a Series B' }).classification, 'peer');
   eq(classifyCompany({ company: 'Chainalysis', category: 'Crypto', trigger: 'New product' }).classification, 'peer');

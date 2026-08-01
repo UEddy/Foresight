@@ -24,6 +24,7 @@ const { recordRejection } = require('./funnel');
 const { withRetry, sleep } = require('../lib/retry');
 const { discoverCryptoRaises } = require('./cryptoDiscovery');
 const { normalizeXHandle, xProfileUrl } = require('./cryptoSources');
+const { matchKnownName } = require('./companyName');
 
 // Pause between consecutive Serper searches in the discovery loop so one run
 // does not burst past the provider's per-minute limit.
@@ -723,22 +724,28 @@ function companyNamesMatch(a, b) {
 // Companies whose product is (or includes) competitor monitoring. Matched on a
 // word boundary against the company name so a prospect is not tripped by a
 // coincidental substring.
+// Matched on the WHOLE normalized name (see companyName.js), so every form a
+// vendor actually goes by has to be listed: "Gong" and "Gong.io" are the peer,
+// "Gong Labs" is not. Adding an alias here is cheap; widening the match back to
+// a substring is what was filtering real prospects.
 const KNOWN_PEER_VENDORS = [
   // core competitive-intelligence products
-  'crayon', 'klue', 'kompyte', 'contify', 'nektar', 'gong', 'cluedin',
+  'crayon', 'klue', 'kompyte', 'contify', 'nektar', 'gong', 'gong.io', 'cluedin',
   // competitor price tracking
-  'prisync', 'competera', 'price2spy', 'wiser', 'intelligence node', 'dealavo',
+  'prisync', 'competera', 'price2spy', 'wiser', 'wiser solutions', 'intelligence node',
+  'dealavo',
   // SEO / traffic / market intelligence
-  'semrush', 'ahrefs', 'similarweb', 'spyfu',
+  'semrush', 'ahrefs', 'similarweb', 'similar web', 'spyfu',
   // social listening / media intelligence
   'brandwatch', 'meltwater', 'sprout social', 'sprinklr', 'talkwalker',
   // crypto on-chain data and market intelligence. Same rule, crypto vocabulary:
   // these sell the analytics genre, so they will not buy it. The web3 segment
   // also screens them at discovery (see cryptoDiscovery.isCryptoPeer); listing
   // them here catches the ones the SEARCH path surfaces.
-  'nansen', 'dune analytics', 'arkham', 'messari', 'kaito', 'token terminal',
-  'glassnode', 'santiment', 'chainalysis', 'elliptic', 'trm labs', 'defillama',
-  'dappradar', 'footprint analytics', 'lunarcrush', 'rootdata', 'cryptorank',
+  'nansen', 'nansen ai', 'dune', 'dune analytics', 'arkham', 'arkham intelligence',
+  'messari', 'kaito', 'kaito ai', 'token terminal', 'glassnode', 'santiment',
+  'chainalysis', 'elliptic', 'trm labs', 'defillama', 'dappradar',
+  'footprint analytics', 'lunarcrush', 'rootdata', 'cryptorank',
 ];
 
 // The monitoring capability itself, in its many phrasings.
@@ -760,10 +767,6 @@ const ROLE_NOUN_RE = /\b(?:analysts?|hire|hires|hiring|roles?|managers?|teams?|l
 
 // Verbs that mean the company put the capability into market.
 const SHIP_VERB_RE = /\b(?:launch\w*|announc\w*|introduc\w*|unveil\w*|ship\w*|releas\w*|roll(?:ing|ed|s)?\s*out|debut\w*|add(?:s|ed|ing)?|built|build\w*|offer\w*|provid\w*|sell\w*|sold|power\w*|bring\w*|new)\b/i;
-
-function escapeRegexWord(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 // Does this trigger text describe the company SHIPPING competitor-monitoring
 // capability (the inverted signal)? Returns the matched capability phrase, or
@@ -796,12 +799,15 @@ function classifyCompany(company) {
   const category = String(company?.category || '');
   const trigger = String(company?.trigger || '');
 
-  // 1) Known vendor whose product is competitor monitoring.
-  const nameL = name.toLowerCase();
-  for (const v of KNOWN_PEER_VENDORS) {
-    if (new RegExp('\\b' + escapeRegexWord(v) + '\\b', 'i').test(nameL)) {
-      return { classification: 'peer', reason: 'known competitor-monitoring vendor (' + v + ')' };
-    }
+  // 1) Known vendor whose product is competitor monitoring. Matched on the WHOLE
+  //    normalized name, never on a word inside it (see companyName.js): entries
+  //    like 'gong', 'wiser', 'elliptic', 'nektar', and 'crayon' are ordinary
+  //    words or common company names, and substring matching was filtering real
+  //    prospects ("Elliptic Labs", "Gong Labs", "Crayon Data") as peers. Checks
+  //    2 and 3 below still screen a vendor whose name this pass does not know.
+  const known = matchKnownName(name, KNOWN_PEER_VENDORS);
+  if (known) {
+    return { classification: 'peer', reason: 'known competitor-monitoring vendor (' + known + ')' };
   }
 
   // 2) The category itself names a monitoring product line.
