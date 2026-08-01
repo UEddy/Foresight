@@ -321,7 +321,7 @@ const GATE_BY_TIER = {
       'Monitor your entire competitive landscape',
       'Hourly monitoring',
       'API access and advanced webhook delivery',
-      '12-month change history',
+      '24-month change history',
       'Priority support',
       'Everything in Team',
     ],

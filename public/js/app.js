@@ -770,44 +770,60 @@ const Pricing = {
     try { sub = await API.getSubscription(); } catch (_) {}
     const current = sub.effectiveTier || 'free';
 
-    // Tier content is kept identical to the landing page cards (public/index.html);
-    // only the CTAs differ, because these users are already logged in. Free is no
-    // longer a public offering, so it is not shown as a selectable card. Existing
-    // free accounts are still handled gracefully by the banner below.
+    // Tier content is kept identical to the landing page cards (public/index.html):
+    // same descriptions, same bullets in the same order, same Planned pills, same
+    // seat lines, waitlist banners, "Everything in ..." lines and waitlist notes.
+    // Only the CTAs differ, because these users are already logged in. When a
+    // landing card changes, change it here too. Free is no longer a public
+    // offering, so it is not shown as a selectable card. Existing free accounts
+    // are still handled gracefully by the banner below.
+    const feat = (text, planned) => ({ text, planned: !!planned });
+    const WAITLIST_BANNER = 'Waitlist tier. Preview pricing, subject to change. Planned features ship before billing begins.';
+    const WAITLIST_NOTE   = 'Launching soon. Waitlist members get 10% off their first 2 months.';
     const plans = [
       {
-        id: 'pro', name: 'Pro', price: 20, desc: 'For active sales teams', popular: true,
+        id: 'pro', name: 'Pro', price: 20, popular: true,
+        desc: 'For founders and operators who need to know the moment a competitor moves.',
         features: [
-          'Monitor up to 15 pages, across as many competitors as you like',
-          'Automatic daily monitoring',
-          'AI briefs with sales talking points and recommended responses',
-          'AI outreach playbook drafts in your voice',
-          'Email brief delivery',
-          'Win/loss correlation and historical pattern analysis',
-          'Revenue Impact Dashboard',
+          feat('Monitor up to 15 pages, up to 5 pages per competitor'),
+          feat('Get automatic daily monitoring on every page'),
+          feat('Read AI briefs with talking points and recommended responses'),
+          feat('Generate outreach playbook drafts in your own voice'),
+          feat('Track win/loss in the Revenue Impact Dashboard'),
+          feat('Alert your team in Slack and Discord'),
         ],
       },
       {
-        id: 'team', name: 'Team', price: 49, desc: 'For collaborative teams', badge: 'Launching soon',
+        id: 'team', name: 'Team', price: 49, badge: 'Launching soon',
+        seat: 'Includes 5 seats. Additional seats $9/month each.',
+        banner: WAITLIST_BANNER,
+        desc: 'For sales teams that need to act on competitor changes together.',
         features: [
-          'A higher page volume with automatic monitoring',
-          'Multi-user workspace with shared competitive intelligence',
-          "Outreach drafts in each team member's own voice",
-          'Role permissions and team collaboration',
-          'Everything in Pro',
+          feat('Find leads automatically as AI surfaces companies most likely to need your product, based on competitor activity', true),
+          feat('Share one competitor workspace across the whole team', true),
+          feat('Annotate competitor changes together', true),
+          feat('Assign competitors to specific teammates', true),
+          feat('Alert the team in Slack and Microsoft Teams', true),
+          feat('Sync competitor context to HubSpot, Salesforce, and Pipedrive', true),
         ],
+        inherit: 'Everything in Pro',
+        note: WAITLIST_NOTE,
       },
       {
-        id: 'business', name: 'Business', price: 149, desc: 'For enterprise needs', badge: 'Launching soon',
+        id: 'business', name: 'Business', price: 149, badge: 'Launching soon',
+        seat: 'Includes 10 seats. Additional seats $12/month each.',
+        banner: WAITLIST_BANNER,
+        desc: 'Company-wide competitive intelligence.',
         features: [
-          "Monitor the competitors others can't: bot-protected sites fully covered",
-          'Monitor your entire competitive landscape',
-          'Hourly monitoring',
-          'API access and advanced webhook delivery',
-          '12-month change history',
-          'Priority support',
-          'Everything in Team',
+          feat('Monitor up to 100 competitors across 1,000 pages', true),
+          feat('Check 25 priority pages hourly and everything else daily', true),
+          feat('Detect opportunities and risks automatically with AI'),
+          feat('See an executive competitive dashboard across the company', true),
+          feat('Analyze competitor win/loss to protect revenue'),
+          feat('Connect through API access and webhooks', true),
         ],
+        inherit: 'Everything in Team',
+        note: WAITLIST_NOTE,
       },
     ];
 
@@ -840,12 +856,16 @@ const Pricing = {
               <div class="pricing-header">
                 <div class="pricing-plan">${p.name}</div>
                 <div class="pricing-price"><span class="price-amount">$${p.price}</span><span class="price-period">/mo</span></div>
-                <div class="pricing-desc">${p.desc}</div>
+                ${p.seat ? `<p class="pricing-seat">${esc(p.seat)}</p>` : ''}
+                ${p.banner ? `<p class="pricing-banner">${esc(p.banner)}</p>` : ''}
+                <div class="pricing-desc">${esc(p.desc)}</div>
               </div>
               <ul class="pricing-features">
-                ${p.features.map(f => `<li class="pricing-feature">${esc(f)}</li>`).join('')}
+                ${p.features.map(f => `<li class="pricing-feature"><span class="pricing-feature-text">${esc(f.text)}</span>${f.planned ? '<span class="pricing-planned">Planned</span>' : ''}</li>`).join('')}
               </ul>
+              ${p.inherit ? `<p class="pricing-inherit">${esc(p.inherit)}</p>` : ''}
               ${cta(p)}
+              ${p.note ? `<p class="pricing-note">${esc(p.note)}</p>` : ''}
             </div>`).join('')}
         </div>
         <p class="text-muted text-sm" style="text-align:center;margin-top:22px">

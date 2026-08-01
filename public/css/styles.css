@@ -1847,6 +1847,35 @@ select.form-select:focus {
   color: var(--txt-3); letter-spacing: 0;
 }
 
+/* Waitlist-tier furniture, mirrored from the landing page plan cards so the
+   in-app Plans page reads identically (see Pricing.render in js/app.js). */
+.pricing-seat { font-size: 13px; color: var(--txt-2); margin: 10px 0 0; }
+
+.pricing-banner {
+  font-size: 11px; line-height: 1.45; color: var(--txt-2);
+  background: var(--bg-elevated); border: 1px solid var(--border-2);
+  border-radius: 10px; padding: 8px 10px; margin: 12px 0 0;
+}
+
+.pricing-header .pricing-desc { margin-top: 12px; margin-bottom: 0; }
+
+.pricing-feature-text { flex: 1 1 auto; }
+
+.pricing-planned {
+  flex: 0 0 auto; align-self: flex-start; margin-top: 1px;
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--txt-3);
+  background: var(--bg-elevated); border: 1px solid var(--border-2);
+  border-radius: 20px; padding: 2px 7px; white-space: nowrap;
+}
+
+.pricing-inherit { font-size: 13px; font-weight: 700; color: var(--txt); margin: 0 0 12px; }
+
+.pricing-note {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.45;
+  color: var(--txt-3); text-align: center;
+}
+
 /* ── Particle Canvas ─────────────────────────────────────────────── */
 .particle-canvas {
   position: absolute;
