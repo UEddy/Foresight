@@ -8,7 +8,7 @@
 //
 // Two differences are intentional and asserted as such:
 //   1. Free is not a selectable card in the app (only Pro, Team, Business).
-//   2. Pro's landing note is trial framing ("14 days free, then $20/month"), which
+//   2. Pro's landing note is trial framing ("14 days free, then $99/month"), which
 //      never renders for a logged-in user, so the app card carries no note.
 
 const assert = require('assert');

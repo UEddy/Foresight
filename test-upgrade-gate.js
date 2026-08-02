@@ -67,9 +67,9 @@ console.log('\n── gateConfigForTier (pure resolver) ──');
   check("team  CTA opens Business waitlist",        cfg('team').cta.onclick === "Billing.openWaitlist('business')");
   check('business CTA is a support mailto',         cfg('business').cta.href === 'mailto:support@nivaria.app');
   check('business has no upgrade/onclick button',   cfg('business').cta.onclick === undefined);
-  check('free  price is $20/month',                 cfg('free').price === '$20/month');
-  check('pro   price is $49/month (waitlist)',      cfg('pro').price === '$49/month (waitlist)');
-  check('team  price is $149/month (waitlist)',     cfg('team').price === '$149/month (waitlist)');
+  check('free  price is $99/month',                 cfg('free').price === '$99/month');
+  check('pro   price is $299/month (waitlist)',      cfg('pro').price === '$299/month (waitlist)');
+  check('team  price is $999/month (waitlist)',     cfg('team').price === '$999/month (waitlist)');
   check('business has no price',                    cfg('business').price === null);
 }
 
@@ -83,7 +83,7 @@ console.log('\n── showUpgradeModal rendered HTML (per current tier) ──')
   check('free: title is Upgrade to Pro',            /modal-title">Upgrade to Pro</.test(html));
   check('free: uses backend feature message',        html.includes("reached your plan&#39;s competitor limit"));
   check('free: shows Pro checkout CTA',               html.includes('Billing.upgradeFromGate()'));
-  check('free: shows $20/month',                      html.includes('$20/month'));
+  check('free: shows $99/month',                      html.includes('$99/month'));
   check('free: has Maybe later dismiss',              html.includes('Maybe later'));
 
   // Pro user hits 10-competitor cap → Team waitlist (the reported bug)
@@ -98,7 +98,7 @@ console.log('\n── showUpgradeModal rendered HTML (per current tier) ──')
   check('pro: Team gate lists Everything in Pro',     html.includes('Everything in Pro'));
   check('pro: Team gate never says "unlimited"',      !/unlimited/i.test(html));
   check('pro: CTA opens Team waitlist',               html.includes("Billing.openWaitlist('team')"));
-  check('pro: shows $49/month (waitlist)',            html.includes('$49/month (waitlist)'));
+  check('pro: shows $299/month (waitlist)',            html.includes('$299/month (waitlist)'));
   check('pro: has Maybe later dismiss',               html.includes('Maybe later'));
 
   // Team user hits cap → Business waitlist
@@ -111,7 +111,7 @@ console.log('\n── showUpgradeModal rendered HTML (per current tier) ──')
   check('team: Business gate has no "custom integration"', !/custom integration/i.test(html));
   check('team: Business gate never says "unlimited"', !/unlimited/i.test(html));
   check('team: CTA opens Business waitlist',          html.includes("Billing.openWaitlist('business')"));
-  check('team: shows $149/month (waitlist)',          html.includes('$149/month (waitlist)'));
+  check('team: shows $999/month (waitlist)',          html.includes('$999/month (waitlist)'));
 
   // Business user → contact enterprise, no upgrade button
   html = render('business', {});

@@ -85,12 +85,20 @@
   }
 
   // ── Hero video fallback ────────────────────────────────────
+  // Also honours prefers-reduced-motion: the loop is indefinite background
+  // motion, so for those visitors we hold it on the first frame rather than
+  // playing it. The overlay gradient still reads the same either way.
   function initVideo() {
     const video = document.getElementById('lp-hero-video');
     if (!video) return;
     video.addEventListener('error', () => {
       video.style.display = 'none';
     });
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      video.removeAttribute('autoplay');
+      video.autoplay = false;
+      video.pause();
+    }
   }
 
   // ── Demo video (lazy Vimeo embed) ──────────────────────────

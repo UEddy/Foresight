@@ -100,7 +100,7 @@ Sales reps log deal outcomes and Nivaria quantifies what competitors cost the bu
 
 ## Plans & billing (Lemon Squeezy)
 
-Subscriptions run on [Lemon Squeezy](https://lemonsqueezy.com) as merchant of record. It handles all card data and PCI compliance; Nivaria stores none. Billing is workspace-scoped: every user owns one personal workspace that carries the subscription. Tiers: **Free** ($0) and **Pro** ($20/mo) are live; **Team** ($49/mo) and **Business** ($149/mo) are waitlist-only.
+Subscriptions run on [Lemon Squeezy](https://lemonsqueezy.com) as merchant of record. It handles all card data and PCI compliance; Nivaria stores none. Billing is workspace-scoped: every user owns one personal workspace that carries the subscription. Tiers: **Free** ($0) and **Pro** ($99/mo) are live; **Team** ($299/mo) and **Business** ($999/mo) are waitlist-only.
 
 Subscription state is driven **solely** by signed webhooks: the app never writes tier/status from a route, so local state can't drift from Lemon Squeezy.
 
@@ -110,7 +110,7 @@ Toggle **Test Mode ON** (top-right of the dashboard) and keep it on for the whol
 
 1. **API key**: Settings → API → *Create API key* → `LEMONSQUEEZY_API_KEY` (server-side only; never sent to the client or logged).
 2. **Store ID**: Settings → Stores → `LEMONSQUEEZY_STORE_ID`.
-3. **Pro variant**: Products → *New Product* "Nivaria Pro", Subscription / $20 per month → copy the **variant** id → `LEMONSQUEEZY_PRO_VARIANT_ID`.
+3. **Pro variant**: Products → *New Product* "Nivaria Pro", Subscription / $99 per month → copy the **variant** id → `LEMONSQUEEZY_PRO_VARIANT_ID`.
 4. **Webhook**: Settings → Webhooks → *New webhook*. Request URL `https://<your-host>/api/webhooks/lemonsqueezy` (use your ngrok URL while testing). Generate a strong signing secret, paste the same value into `LEMONSQUEEZY_WEBHOOK_SECRET`, and subscribe to all `subscription_*` events.
 
 Leave `LEMONSQUEEZY_TEST_MODE=true` until going live (Phase 13). Enable the **Customer Portal** under Settings → Customer Portal so the "Manage subscription" button works. The webhook contract (every event → state change) is documented in [`docs/webhook-event-mapping.md`](docs/webhook-event-mapping.md).

@@ -66,7 +66,7 @@
         "publisher": { "@id": "https://nivaria.app/#organization" },
         "offers": {
           "@type": "Offer",
-          "price": "20",
+          "price": "99",
           "priceCurrency": "USD",
           "description": "Pro plan, monitor up to 15 pages with daily AI briefs. 14-day free trial."
         }
@@ -78,7 +78,10 @@
 </head>
 <body>
 
+  <a class="lp-skip" href="#main">Skip to main content</a>
+
   <!-- ── Navbar ─────────────────────────────────────────────── -->
+  <header class="lp-header" role="banner">
   <nav class="lp-nav" id="lp-nav" role="navigation" aria-label="Main navigation">
     <div class="lp-nav-inner">
       <a href="/" class="lp-logo" aria-label="Nivaria home">
@@ -107,27 +110,81 @@
       <a href="/register" class="lp-btn lp-btn-primary" style="width:100%;justify-content:center;">Start free trial</a>
     </div>
   </nav>
+  </header>
+
+  <main id="main">
 
   <!-- ── Hero ───────────────────────────────────────────────── -->
-  <section class="lp-hero" aria-label="Hero">
+  <section class="lp-hero" aria-labelledby="lp-hero-h1">
     <video id="lp-hero-video" class="lp-hero-video" autoplay muted loop playsinline aria-hidden="true">
       <source src="/assets/hero-data.mp4.mp4" type="video/mp4">
     </video>
     <div class="lp-hero-overlay" aria-hidden="true"></div>
     <div class="lp-hero-content">
-      <h1 class="lp-hero-headline">
-        The moment they move, you know.
+      <p class="lp-hero-eyebrow">The moment they move, you know.</p>
+      <h1 class="lp-hero-headline" id="lp-hero-h1">
+        Stop losing deals to competitor moves you never saw.
       </h1>
       <p class="lp-hero-sub">
-        Nivaria automatically tracks what your competitors are doing and tells your sales team the changes made and how to respond.
+        Nivaria watches your competitors' pricing, features, and messaging every day, then hands your reps the answer before the prospect raises the objection. Built for CROs, VPs of Sales, and product marketers.
       </p>
-      <a href="/register" class="lp-btn lp-btn-primary lp-btn-lg">
-        Get started
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-        </svg>
-      </a>
-      <p class="lp-hero-trust">Trusted by sales teams that close more deals</p>
+      <div class="lp-hero-actions">
+        <a href="/register" class="lp-btn lp-btn-primary lp-btn-lg">
+          Start free trial
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+          </svg>
+        </a>
+        <a href="#demo" class="lp-btn lp-btn-lg lp-btn-onvideo">
+          Watch the 1 minute tour
+        </a>
+      </div>
+      <p class="lp-hero-trust">14-day free trial. No credit card required.</p>
+    </div>
+  </section>
+
+  <!-- ── Value proposition: revenue defense ─────────────────── -->
+  <section class="lp-section lp-alt" id="revenue-defense" aria-labelledby="lp-rd-h">
+    <div class="lp-container">
+      <div class="lp-rd-header lp-animate">
+        <div class="lp-section-label">Revenue defense</div>
+        <h2 class="lp-section-title" id="lp-rd-h">Competitive intelligence that defends the deal, not another dashboard</h2>
+        <p class="lp-section-sub">Monitoring tells you something changed. Nivaria tells your team what it costs them and what to do about it while the deal is still open.</p>
+      </div>
+
+      <div class="lp-rd-grid">
+
+        <article class="lp-rd-card lp-animate" data-delay="1">
+          <span class="lp-rd-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/>
+            </svg>
+          </span>
+          <h3 class="lp-rd-title">Stop mid-funnel deal slip</h3>
+          <p class="lp-rd-desc">Deals stall when a competitor rewrites the story after your first call. Nivaria flags the move the day it happens, not the week the deal is marked closed lost.</p>
+        </article>
+
+        <article class="lp-rd-card lp-animate" data-delay="2">
+          <span class="lp-rd-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </span>
+          <h3 class="lp-rd-title">Real-time objection handling</h3>
+          <p class="lp-rd-desc">Every brief arrives with talking points a rep can use on the next call. No interpretation step, no research, no waiting on product marketing to rewrite the battlecard.</p>
+        </article>
+
+        <article class="lp-rd-card lp-animate" data-delay="3">
+          <span class="lp-rd-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </span>
+          <h3 class="lp-rd-title">Protect the win rate you already have</h3>
+          <p class="lp-rd-desc">Log which deals a competitor touched and what happened next. The Revenue Impact Dashboard turns competitive pressure into a number you can take to the board.</p>
+        </article>
+
+      </div>
     </div>
   </section>
 
@@ -158,21 +215,22 @@
   </section>
 
   <!-- ── Problem ────────────────────────────────────────────── -->
-  <section class="lp-section lp-alt" id="problem" aria-label="The problem">
+  <section class="lp-section lp-alt" id="problem" aria-labelledby="lp-problem-h">
     <div class="lp-container">
       <div class="lp-problem-inner lp-animate">
         <div class="lp-section-label">The problem</div>
-        <h2 class="lp-section-title lp-problem-lead">Sales teams aren't aware in real time of what competitors are doing, and lose business unexpectedly.</h2>
+        <h2 class="lp-section-title lp-problem-lead" id="lp-problem-h">A competitor repriced on Tuesday. Your rep found out from the prospect on Friday, in the room where the deal was lost.</h2>
+        <p class="lp-problem-sub">By the time a competitor's move reaches your team through the pipeline, the deal has already been reframed without you. That gap is where forecast slips, and nobody logs it as a competitive loss.</p>
       </div>
     </div>
   </section>
 
   <!-- ── How it works ───────────────────────────────────────── -->
-  <section class="lp-section lp-how" id="how" aria-label="How it works">
+  <section class="lp-section lp-how" id="how" aria-labelledby="lp-how-h">
     <div class="lp-container">
       <div class="lp-how-header lp-animate">
         <div class="lp-section-label">How it works</div>
-        <h2 class="lp-section-title">From competitor activity to your next move</h2>
+        <h2 class="lp-section-title" id="lp-how-h">From competitor activity to your next move</h2>
         <p class="lp-section-sub">No dashboards to build and no research to run. Nivaria does the watching and the thinking for you.</p>
       </div>
       <div class="lp-steps-grid">
@@ -180,7 +238,7 @@
         <div class="lp-step lp-animate" data-delay="1">
           <div class="lp-step-num" aria-hidden="true">1</div>
           <h3 class="lp-step-title">Add your competitors</h3>
-          <p class="lp-step-desc">Enter the competitors you sell against. Nivaria starts tracking their public pages right away.</p>
+          <p class="lp-step-desc">Enter the competitors you actually lose deals to. Nivaria starts tracking their public pages right away.</p>
         </div>
 
         <div class="lp-step lp-animate" data-delay="2">
@@ -192,13 +250,13 @@
         <div class="lp-step lp-animate" data-delay="3">
           <div class="lp-step-num" aria-hidden="true">3</div>
           <h3 class="lp-step-title">Get an AI brief when something changes</h3>
-          <p class="lp-step-desc">By the time the news reaches your sales representative you risk losing business. Nivaria makes sure your team sees it first hand, and knows what to do about it.</p>
+          <p class="lp-step-desc">Each change is classified high, medium, or low, so your team reads the moves that threaten pipeline and ignores the ones that do not.</p>
         </div>
 
         <div class="lp-step lp-animate" data-delay="4">
           <div class="lp-step-num" aria-hidden="true">4</div>
           <h3 class="lp-step-title">Know exactly how to respond</h3>
-          <p class="lp-step-desc">Every brief comes with sales talking points, recommended responses, and outreach drafts written in your voice.</p>
+          <p class="lp-step-desc">Every brief comes with sales talking points, a recommended response, and outreach drafts written in your voice, ready for the next call.</p>
         </div>
 
       </div>
@@ -206,16 +264,16 @@
   </section>
 
   <!-- ── Features ───────────────────────────────────────────── -->
-  <section class="lp-features lp-section" id="features" aria-label="Features">
+  <section class="lp-features lp-section" id="features" aria-labelledby="lp-features-h">
     <div class="lp-container">
       <div class="lp-features-header lp-animate">
         <div class="lp-section-label">What you get</div>
-        <h2 class="lp-section-title">Everything your team needs to stay ahead</h2>
+        <h2 class="lp-section-title" id="lp-features-h">Everything your team needs to stay ahead</h2>
         <p class="lp-section-sub">Automated monitoring, AI briefs, and ready-to-use responses, all in one place.</p>
       </div>
       <div class="lp-features-grid">
 
-        <div class="lp-feature-col lp-animate" data-delay="1">
+        <article class="lp-feature-col lp-animate" data-delay="1">
           <img
             src="/assets/monitor.svg.svg"
             alt="Monitoring illustration"
@@ -224,9 +282,9 @@
           >
           <h3 class="lp-feature-title">Automated monitoring</h3>
           <p class="lp-feature-desc">Nivaria checks your competitors&rsquo; public pages every day, automatically. No more manual tab-checking, spreadsheets, or calendar reminders.</p>
-        </div>
+        </article>
 
-        <div class="lp-feature-col lp-animate" data-delay="2">
+        <article class="lp-feature-col lp-animate" data-delay="2">
           <img
             src="/assets/analysis.svg.svg"
             alt="AI analysis illustration"
@@ -234,10 +292,10 @@
             loading="lazy"
           >
           <h3 class="lp-feature-title">AI briefs that tell you what it means</h3>
-          <p class="lp-feature-desc">Most tools only flag that something changed. Nivaria explains what changed, assesses the impact on your business, and recommends your next move.</p>
-        </div>
+          <p class="lp-feature-desc">Most tools only flag that something changed. Nivaria explains what changed, assesses the impact on your pipeline, and recommends your next move.</p>
+        </article>
 
-        <div class="lp-feature-col lp-animate" data-delay="3">
+        <article class="lp-feature-col lp-animate" data-delay="3">
           <img
             src="/assets/radar.svg.svg"
             alt="Radar alerts illustration"
@@ -246,8 +304,55 @@
           >
           <h3 class="lp-feature-title">Alerts where you work</h3>
           <p class="lp-feature-desc">Get briefs, talking points, and outreach drafts delivered to Slack, Discord, or your inbox the moment anything changes.</p>
-        </div>
+        </article>
 
+      </div>
+
+      <!-- Capability list. Keeps the full technical surface of the product on
+           the page (competitor website monitoring, severity classification,
+           battlecards, Slack and CRM delivery) below the positioning copy.
+           Unshipped items carry the same "Planned" pill used in pricing, so the
+           list stays honest against the comparison table further down. -->
+      <div class="lp-spec lp-animate" data-delay="4">
+        <h3 class="lp-spec-h">Competitor tracking and monitoring features</h3>
+        <ul class="lp-spec-grid">
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Competitor website monitoring</span>
+            <span class="lp-spec-desc">Daily automated checks on pricing pages, feature pages, homepages, and announcement pages.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Severity classification</span>
+            <span class="lp-spec-desc">Every detected change is scored high, medium, or low threat, with the reasoning shown.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Automated battlecards</span>
+            <span class="lp-spec-desc">Each meaningful change becomes a battle card with talking points and a recommended response.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Slack and Discord alerts</span>
+            <span class="lp-spec-desc">Briefs land in the channel your revenue team already works in, minutes after detection.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Pre-meeting briefings</span>
+            <span class="lp-spec-desc">Connect Google Calendar and get a condensed competitive brief before a meeting with that account.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Outreach playbook drafts</span>
+            <span class="lp-spec-desc">Subject lines and email bodies generated in your own voice profile, ready to send or edit.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Competitor change timeline</span>
+            <span class="lp-spec-desc">Replay every move a competitor made, in order, with 12 months of history on Pro.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">Revenue Impact Dashboard</span>
+            <span class="lp-spec-desc">Log competitive win/loss against the changes that touched each deal.</span>
+          </li>
+          <li class="lp-spec-item">
+            <span class="lp-spec-term">CRM sync <span class="lp-plan-pill-planned">Planned</span></span>
+            <span class="lp-spec-desc">Push competitor context onto the account record in HubSpot, Salesforce, and Pipedrive.</span>
+          </li>
+        </ul>
       </div>
 
       <div class="lp-features-note lp-animate" data-delay="4" style="max-width:760px;margin:48px auto 0;text-align:center;">
@@ -261,12 +366,12 @@
   <div class="lp-stripe" aria-hidden="true"></div>
 
   <!-- ── For Whom ────────────────────────────────────────────── -->
-  <section class="lp-section" id="for-whom" aria-label="Who Nivaria is for">
+  <section class="lp-section" id="for-whom" aria-labelledby="lp-forwhom-h">
     <div class="lp-container">
       <div class="lp-forwhom-header lp-animate">
         <div class="lp-section-label">Who it is for</div>
-        <h2 class="lp-section-title">Built for teams that sell against the competition</h2>
-        <p class="lp-section-sub">Nivaria is built first for B2B sales. It works just as well for anyone whose deals turn on knowing the market before everyone else.</p>
+        <h2 class="lp-section-title" id="lp-forwhom-h">Built for teams that sell against the competition</h2>
+        <p class="lp-section-sub">Nivaria is built first for the people who own the number and the people who arm them. It works just as well for anyone whose deals turn on knowing the market before everyone else.</p>
       </div>
       <div class="lp-forwhom-layout">
       <ul class="lp-forwhom-list" aria-label="Audiences Nivaria serves">
@@ -274,16 +379,40 @@
         <li class="lp-forwhom-item lp-animate" data-delay="1">
           <span class="lp-forwhom-icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              <path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>
             </svg>
           </span>
           <div class="lp-forwhom-body">
-            <h3 class="lp-forwhom-title">B2B Sales Representatives</h3>
-            <p class="lp-forwhom-desc">Know what changed on the other side of the table before the call, and go in with the exact response ready.</p>
+            <h3 class="lp-forwhom-title">Revenue leaders, CROs and VPs of Sales</h3>
+            <p class="lp-forwhom-desc">See which competitor moves are landing on open pipeline, and whether your team's response is holding the win rate.</p>
           </div>
         </li>
 
         <li class="lp-forwhom-item lp-animate" data-delay="2">
+          <span class="lp-forwhom-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <div class="lp-forwhom-body">
+            <h3 class="lp-forwhom-title">B2B account executives</h3>
+            <p class="lp-forwhom-desc">Know what changed on the other side of the table before the call, and go in with the exact response ready.</p>
+          </div>
+        </li>
+
+        <li class="lp-forwhom-item lp-animate" data-delay="3">
+          <span class="lp-forwhom-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+            </svg>
+          </span>
+          <div class="lp-forwhom-body">
+            <h3 class="lp-forwhom-title">Product marketers and PMMs</h3>
+            <p class="lp-forwhom-desc">Ship a battlecard the day a competitor moves instead of rebuilding the deck each quarter, and see which points reps actually use.</p>
+          </div>
+        </li>
+
+        <li class="lp-forwhom-item lp-animate" data-delay="4">
           <span class="lp-forwhom-icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
@@ -295,27 +424,15 @@
           </div>
         </li>
 
-        <li class="lp-forwhom-item lp-animate" data-delay="3">
-          <span class="lp-forwhom-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-            </svg>
-          </span>
-          <div class="lp-forwhom-body">
-            <h3 class="lp-forwhom-title">Consultants</h3>
-            <p class="lp-forwhom-desc">Bring clients a sharp, current read on their competitors without hours of manual research every week.</p>
-          </div>
-        </li>
-
-        <li class="lp-forwhom-item lp-animate" data-delay="4">
+        <li class="lp-forwhom-item lp-animate" data-delay="5">
           <span class="lp-forwhom-icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           </span>
           <div class="lp-forwhom-body">
-            <h3 class="lp-forwhom-title">Agencies</h3>
-            <p class="lp-forwhom-desc">Track the competition for every client account in one place, and turn each change into a next step.</p>
+            <h3 class="lp-forwhom-title">Agencies and consultants</h3>
+            <p class="lp-forwhom-desc">Track the competition for every client account in one place, and turn each change into a next step without hours of manual research.</p>
           </div>
         </li>
 
@@ -457,7 +574,7 @@
           <div class="lp-plan-tag">Most Popular</div>
           <div class="lp-plan-name">Pro</div>
           <div class="lp-plan-price">
-            <span class="lp-plan-amount">$20</span>
+            <span class="lp-plan-amount">$99</span>
             <span class="lp-plan-period">/month</span>
           </div>
           <p class="lp-plan-desc">For founders and operators who need to know the moment a competitor moves.</p>
@@ -472,17 +589,17 @@
           </ul>
           <a href="#lp-compare" class="lp-plan-seeall">See all features</a>
           <a href="/register" class="lp-plan-cta">Start 14-day free trial</a>
-          <p class="lp-plan-waitnote">14 days free, then $20/month. No credit card required to start.</p>
+          <p class="lp-plan-waitnote">14 days free, then $99/month. No credit card required to start.</p>
         </div>
 
         <!-- Team (waitlist, no checkout) -->
         <div class="lp-plan-card lp-plan-card-full lp-animate" data-delay="3">
           <div class="lp-plan-name">Team</div>
           <div class="lp-plan-price">
-            <span class="lp-plan-amount">$49</span>
+            <span class="lp-plan-amount">$299</span>
             <span class="lp-plan-period">/month</span>
           </div>
-          <p class="lp-plan-seat">Includes 5 seats. Additional seats $9/month each.</p>
+          <p class="lp-plan-seat">Includes 5 seats. Additional seats $49/month each.</p>
           <p class="lp-plan-banner">Waitlist tier. Preview pricing, subject to change. Planned features ship before billing begins.</p>
           <p class="lp-plan-desc">For sales teams that need to act on competitor changes together.</p>
           <div class="lp-plan-divider"></div>
@@ -504,10 +621,10 @@
         <div class="lp-plan-card lp-plan-card-full lp-animate" data-delay="4">
           <div class="lp-plan-name">Business</div>
           <div class="lp-plan-price">
-            <span class="lp-plan-amount">$149</span>
+            <span class="lp-plan-amount">$999</span>
             <span class="lp-plan-period">/month</span>
           </div>
-          <p class="lp-plan-seat">Includes 10 seats. Additional seats $12/month each.</p>
+          <p class="lp-plan-seat">Includes 10 seats. Additional seats $99/month each.</p>
           <p class="lp-plan-banner">Waitlist tier. Preview pricing, subject to change. Planned features ship before billing begins.</p>
           <p class="lp-plan-desc">Company-wide competitive intelligence.</p>
           <div class="lp-plan-divider"></div>
@@ -571,7 +688,7 @@
 
               <tr class="lp-ct-group"><th colspan="5" scope="colgroup">Team and collaboration</th></tr>
               <tr><th scope="row">Seats included</th><td>1</td><td>1</td><td>5 <span class="lp-ct-planned">Planned</span></td><td>10 <span class="lp-ct-planned">Planned</span></td></tr>
-              <tr><th scope="row">Additional seats</th><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td>$9/mo each <span class="lp-ct-planned">Planned</span></td><td>$12/mo each <span class="lp-ct-planned">Planned</span></td></tr>
+              <tr><th scope="row">Additional seats</th><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td>$49/mo each <span class="lp-ct-planned">Planned</span></td><td>$99/mo each <span class="lp-ct-planned">Planned</span></td></tr>
               <tr><th scope="row">Shared competitor workspace</th><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-planned">Planned</span></td><td><span class="lp-ct-planned">Planned</span></td></tr>
               <tr><th scope="row">Team annotations on changes</th><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-planned">Planned</span></td><td><span class="lp-ct-planned">Planned</span></td></tr>
               <tr><th scope="row">Assign competitors to teammates</th><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-no" aria-label="Not included">&times;</span></td><td><span class="lp-ct-planned">Planned</span></td><td><span class="lp-ct-planned">Planned</span></td></tr>
@@ -649,19 +766,23 @@
   <div class="lp-stripe" aria-hidden="true"></div>
 
   <!-- ── Final CTA ───────────────────────────────────────────── -->
-  <section class="lp-cta-section" aria-label="Call to action">
+  <section class="lp-cta-section" aria-labelledby="lp-cta-h">
     <div class="lp-container">
-      <h2 class="lp-cta-headline lp-animate">
-        Stop guessing what your <span class="lp-cta-accent">competitors</span> are doing.
+      <h2 class="lp-cta-headline lp-animate" id="lp-cta-h">
+        Stop hearing about your <span class="lp-cta-accent">competitors</span> from the prospect.
       </h2>
-      <a href="/register" class="lp-btn lp-btn-primary lp-btn-lg lp-animate" data-delay="1">
-        Get started
+      <p class="lp-cta-sub lp-animate" data-delay="1">Add the competitors you lose deals to and get your first brief this week.</p>
+      <a href="/register" class="lp-btn lp-btn-primary lp-btn-lg lp-animate" data-delay="2">
+        Start free trial
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
         </svg>
       </a>
+      <p class="lp-cta-note lp-animate" data-delay="3">14 days free, then $99/month. No credit card required to start.</p>
     </div>
   </section>
+
+  </main>
 
   <!-- ── Footer ─────────────────────────────────────────────── -->
   <footer class="lp-footer" role="contentinfo">

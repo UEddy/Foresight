@@ -1329,3 +1329,247 @@ a.lp-plan-cta { display: flex; align-items: center; justify-content: center; tex
   letter-spacing: 0; text-transform: none; color: var(--lp-txt-2);
   line-height: 1.4; max-width: 180px;
 }
+
+/* ══════════════════════════════════════════════════════════
+   Revenue defense positioning: hero preview, value prop grid,
+   capability spec list
+   ══════════════════════════════════════════════════════════ */
+
+/* Skip link. Visible only once focused, sits above the fixed navbar. */
+.lp-skip {
+  position: absolute;
+  left: 16px;
+  top: -100px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--lp-accent);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: top 0.15s ease;
+}
+.lp-skip:focus { top: 12px; }
+
+/* Screen-reader-only text utility, for naming a region whose visible title is a
+   composed row rather than a heading. */
+.lp-sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Visible focus ring for keyboard users across the landing controls. */
+.lp-skip:focus-visible,
+.lp-btn:focus-visible,
+.lp-team-card:focus-visible,
+.lp-plan-cta:focus-visible,
+.lp-plan-seeall:focus-visible,
+.lp-compare-toggle:focus-visible,
+.lp-video-facade:focus-visible,
+.lp-theme-btn:focus-visible,
+.lp-footer-col a:focus-visible {
+  outline: 2px solid var(--lp-accent-2);
+  outline-offset: 3px;
+}
+
+/* ── Hero: taller content stack (eyebrow, dual CTA, brief preview) ── */
+.lp-hero {
+  padding: calc(var(--lp-nav-h) + 56px) 0 84px;
+}
+.lp-hero-content {
+  max-width: 1000px;
+  padding-top: 0;
+}
+.lp-hero-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #A5B4FC;
+  margin-bottom: 18px;
+}
+[data-lp-theme="light"] .lp-hero-eyebrow { color: var(--lp-accent); }
+
+/* The revenue-defense headline runs longer than the previous four-word line, so
+   it needs a lower ceiling than the original clamp to hold its line count. */
+.lp-hero-headline {
+  font-size: clamp(2.25rem, 4.6vw, 4.1rem);
+  max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
+  /* Even line lengths instead of a one-word last line. Ignored by browsers that
+     do not support it, which simply get the default greedy wrap. */
+  text-wrap: balance;
+}
+.lp-rd-header .lp-section-title,
+.lp-problem-lead { text-wrap: balance; }
+.lp-hero-sub { max-width: 660px; margin-bottom: 32px; }
+/* The trust line now carries the trial terms, so it needs to be legible over
+   the video rather than a whisper. */
+.lp-hero-trust { color: rgba(255,255,255,0.68); }
+[data-lp-theme="light"] .lp-hero-trust { color: rgba(12,12,20,0.62); }
+
+.lp-hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+/* Secondary CTA sitting on the hero video. Translucent rather than solid so the
+   footage still reads through, with a border heavy enough to hold contrast in
+   both themes. */
+.lp-btn-onvideo {
+  color: #fff;
+  background: rgba(255,255,255,0.10);
+  border: 1.5px solid rgba(255,255,255,0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.lp-btn-onvideo:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.75);
+  transform: translateY(-1px);
+}
+[data-lp-theme="light"] .lp-btn-onvideo {
+  color: #0A0A14;
+  background: rgba(255,255,255,0.65);
+  border-color: rgba(12,12,20,0.35);
+}
+[data-lp-theme="light"] .lp-btn-onvideo:hover {
+  background: rgba(255,255,255,0.85);
+  border-color: rgba(12,12,20,0.6);
+}
+
+@media (max-width: 600px) {
+  .lp-hero { padding: calc(var(--lp-nav-h) + 36px) 0 60px; }
+  .lp-hero-content { padding: 0 24px; }
+  .lp-hero-actions .lp-btn-lg { width: 100%; justify-content: center; }
+}
+
+/* ── Revenue defense value prop grid ─────────────────────── */
+.lp-rd-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.lp-rd-header .lp-section-sub { margin: 0 auto; max-width: 620px; }
+.lp-rd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 1060px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) { .lp-rd-grid { grid-template-columns: 1fr; max-width: 560px; } }
+.lp-rd-card {
+  background: var(--lp-bg-card);
+  border: 1px solid var(--lp-border);
+  border-radius: var(--lp-radius);
+  padding: 28px 26px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.lp-rd-card:hover { transform: translateY(-3px); border-color: var(--lp-accent); }
+.lp-rd-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(67,56,202,0.14);
+  color: var(--lp-accent-2);
+  margin-bottom: 18px;
+}
+[data-lp-theme="light"] .lp-rd-icon { color: var(--lp-accent); }
+.lp-rd-title {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--lp-txt);
+  margin-bottom: 8px;
+}
+.lp-rd-desc {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--lp-txt-2);
+}
+
+/* Supporting line under the problem statement. */
+.lp-problem-sub {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--lp-txt-2);
+  max-width: 720px;
+  margin-top: 20px;
+}
+
+/* ── Capability spec list (technical surface under the feature grid) ── */
+.lp-spec { max-width: 1060px; margin: 72px auto 0; }
+.lp-spec-h {
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--lp-txt);
+  text-align: center;
+  margin-bottom: 28px;
+}
+.lp-spec-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px 28px;
+  margin: 0;
+}
+@media (max-width: 900px) { .lp-spec-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .lp-spec-grid { grid-template-columns: 1fr; } }
+.lp-spec-item {
+  border-top: 1px solid var(--lp-border);
+  padding-top: 14px;
+}
+.lp-spec-term {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--lp-txt);
+  margin-bottom: 5px;
+}
+.lp-spec-desc {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--lp-txt-2);
+}
+
+/* ── Final CTA supporting copy ───────────────────────────── */
+.lp-cta-sub {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--lp-txt-2);
+  max-width: 560px;
+  margin: 0 auto 32px;
+}
+.lp-cta-note {
+  margin-top: 18px;
+  font-size: 0.8125rem;
+  color: var(--lp-txt-3);
+}
+
+/* Honour the reduced-motion preference: scroll-reveal targets render in place
+   rather than sliding, and hover lifts are dropped. */
+@media (prefers-reduced-motion: reduce) {
+  .lp-animate { opacity: 1; transform: none; transition: none; }
+  .lp-rd-card:hover, .lp-btn-onvideo:hover, .lp-forwhom-item:hover { transform: none; }
+  html { scroll-behavior: auto; }
+}
