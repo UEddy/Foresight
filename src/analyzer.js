@@ -62,7 +62,7 @@ const ALLOWED_PATTERN_TAGS = [
 ];
 
 const SYSTEM_PROMPT = `You are a competitive intelligence analyst writing briefs for a SaaS sales team.
-You analyze diffs of competitor website content and decide what, if anything, the sales team needs to know.
+You analyze differences in competitor website content and decide what, if anything, the sales team needs to know.
 
 THREAT-LEVEL CALIBRATION (apply strictly):
 
@@ -160,7 +160,7 @@ before or after. The object MUST contain these fields, all required:
   "pattern_tags": [ array of 1-3 short tags from this vocabulary: ${ALLOWED_PATTERN_TAGS.join(', ')}, used to group this change with future ones. Pick "other" only if nothing fits ]
 }
 
-If after reading the diff you conclude there is no real change worth a sales
+If after reading the differences you conclude there is no real change worth a sales
 team's attention (only whitespace shuffled, only a year incremented, only meta
 tags rewritten), set is_meaningful=false, threat_level="low", and
 fill the other fields with the trivial-case defaults above. Do NOT invent

@@ -4,7 +4,7 @@
 
 ## Overview
 
-Nivaria watches competitor websites on a schedule, detects meaningful changes, and uses Claude to turn each diff into a structured brief with threat scoring and a recommended response. Sales teams learn about a competitor's new pricing, feature launch, or messaging shift the day it ships, not weeks later from a deal they lost. The product replaces a manual research process that most B2B teams either skip entirely or assign to whoever has the least to do.
+Nivaria watches competitor websites on a schedule, detects meaningful changes, and uses Claude to turn each difference into a structured brief with threat scoring and a recommended response. Sales teams learn about a competitor's new pricing, feature launch, or messaging shift the day it ships, not weeks later from a deal they lost. The product replaces a manual research process that most B2B teams either skip entirely or assign to whoever has the least to do.
 
 ## Why I built this
 
@@ -92,7 +92,7 @@ Verification is a separate launch task. Submit at OAuth consent screen → "Publ
 
 ## Win/loss & ROI
 
-Sales reps log deal outcomes and Nivaria quantifies what competitors cost the business. For every lost or stalled deal tagged to a competitor, the engine looks at that competitor's meaningful changes in the 30 days before the deal closed, classifies them (pricing / messaging / feature), and surfaces patterns like "8 of your 12 tracked deals against Acme closed within 30 days of a pricing change."
+Sales representatives log deal outcomes and Nivaria quantifies what competitors cost the business. For every lost or stalled deal tagged to a competitor, the engine looks at that competitor's meaningful changes in the 30 days before the deal closed, classifies them (pricing / messaging / feature), and surfaces patterns like "8 of your 12 tracked deals against Acme closed within 30 days of a pricing change."
 
 - The math is pure data analysis, no AI: simple correlation and counting, which is the honest ceiling for the sample sizes these teams have. Confidence is a function of supporting-deal count (low 3 to 5, medium 6 to 14, high 15+), every finding says "correlates with" rather than "caused", and small samples are flagged.
 - Two logging paths, both optimized for speed: an inline form on the Deals page (no modal), and the Slack slash command below.
@@ -123,7 +123,7 @@ Test card: `4242 4242 4242 4242`, any future expiry, any CVC.
 
 ### Slack deal logging setup
 
-Connect a Slack workspace so reps can log deals without leaving Slack.
+Connect a Slack workspace so sales representatives can log deals without leaving Slack.
 
 1. **Create a Slack app** at [api.slack.com/apps](https://api.slack.com/apps) ("From scratch").
 2. **Signing secret** (required): Basic Information -> App Credentials -> Signing Secret. Put it in `.env` as `SLACK_SIGNING_SECRET`. The slash command endpoint verifies every request's signature and rejects anything older than 5 minutes (replay protection).

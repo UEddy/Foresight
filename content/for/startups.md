@@ -54,7 +54,7 @@ You can totally do it yourself, and for a bit, it actually works.
 
 The typical DIY setup is pretty straightforward: Google Alerts for brand mentions, a basic page monitor like Visualping for pricing pages, an RSS reader for company blogs, and Zapier dumping everything into Slack. It costs almost nothing to set up, and it really will catch the big stuff.
 
-What it doesn't actually tell you is what those changes entail as pertaining to your business. You just get a ping saying a page changed, along with a messy visual diff to figure out. Spread that across five competitors and four pages each, and suddenly you're staring at twenty messy stuffs you still have to do work on. It's boring and tedious work.
+What it doesn't actually tell you is what those changes entail as pertaining to your business. You just get a ping saying a page changed, along with a messy visual difference to figure out. Spread that across five competitors and four pages each, and suddenly you're staring at twenty messy stuffs you still have to do work on. It's boring and tedious work.
 
 On top of that, the DIY stack breaks constantly. Competitors redesign their sites and break your scrapers, alerts turn into spam, and nobody on the team wants to fix it.
 
@@ -66,9 +66,9 @@ Three bands:
 
 **Free to $20/month:** page-change monitors with limited page counts. They detect changes and leave interpretation to you.
 
-**$20 to $100/month:** self-serve tools, some of which add AI summarisation. Compare on what comes back per change rather than on headline price. A cheap plan that hands you a visual diff still leaves the whole interpretation job on your desk.
+**$20 to $100/month:** self-serve tools, some of which add AI summarisation. Compare on what comes back per change rather than on headline price. A cheap plan that hands you a visual difference still leaves the whole interpretation job on your desk.
 
-**$20,000+/year:** enterprise platforms with briefs, CRM integration and services. Worth it with a dedicated product marketing hire and twenty or more reps.
+**$20,000+/year:** enterprise platforms with briefs, CRM integration and services. Worth it with a dedicated product marketing hire and twenty or more sales representatives.
 
 Nivaria sits at the top of that middle band at $99 a month and does the interpretation the rest of the band leaves to you: 15 pages monitored daily, AI briefs explaining what changed and what to do, delivered to Slack, Discord or email. Fourteen-day trial, no credit card, no demo call.
 

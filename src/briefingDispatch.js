@@ -49,7 +49,7 @@ async function condenseTalkingPoints({ competitorName, meetingTitle, headline, s
   }
 
   const userPrompt =
-`You're prepping a sales rep who walks into "${meetingTitle}" in 30 minutes.
+`You're prepping a sales representative who walks into "${meetingTitle}" in 30 minutes.
 The competitor in this meeting is "${competitorName}".
 
 Their most recent material move:
@@ -60,14 +60,14 @@ Battle-card talking points the team already has:
 ${(talkingPoints || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
 Condense to 2-3 ultra-punchy talking points (max ~110 chars each) framed for
-a rep who has 30 minutes to walk in. Lead with the most pointed line.
+a sales representative who has 30 minutes to walk in. Lead with the most pointed line.
 Return ONLY a JSON array of strings, no prose, no markdown fences.`;
 
   const resp = await getAnthropic().messages.create({
     model: HAIKU_MODEL,
     max_tokens: 400,
     system:
-`You write tight, factual pre-meeting prep for B2B sales reps. No fluff.
+`You write tight, factual pre-meeting prep for B2B sales representatives. No fluff.
 
 STYLE GUIDELINES (apply to every talking point you write):
 - Never use em-dashes (—), en-dashes (–), or the "+" character as a connector between words or phrases. Write "and" instead, or use commas, periods, colons, or parentheses. Ordinary hyphens in compound words ("pre-meeting") are fine. The ONLY time you may write "+" is when quoting a competitor's literal product name, plan name, or pricing string exactly as it appears on their site.

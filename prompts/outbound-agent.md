@@ -56,7 +56,7 @@ tracking. Map seniority to angle:
   Speak to the time cost and the fear of missing a competitor's pricing move.
 - PMM / Competitive Intelligence / Product Marketing: they own competitive briefs
   and win/loss. Speak to keeping enablement current without manual page-watching.
-- RevOps / Sales leadership: they care about reps losing deals to a competitor
+- RevOps / Sales leadership: they care about sales representatives losing deals to a competitor
   change nobody flagged in time.
 
 ## Style

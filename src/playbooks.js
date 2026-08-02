@@ -82,7 +82,7 @@ const VARIANTS = {
 
 // ── System prompt: the human-tone rules ──────────────────────────────────────
 
-const SYSTEM_PROMPT_HEADER = `You are writing outreach messages on behalf of a B2B sales rep at a SaaS company.
+const SYSTEM_PROMPT_HEADER = `You are writing outreach messages on behalf of a B2B sales representative at a SaaS company.
 Your goal is for the message to be indistinguishable from one the user wrote themselves.
 A reader who knows the user should not be able to tell that an AI helped.
 

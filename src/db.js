@@ -1362,7 +1362,7 @@ function seedDemoData() {
     ],
     key_changes: [
       { category: 'messaging', description: 'Two new Fortune 500 logos added', impact: 'Improves enterprise credibility' },
-      { category: 'features', description: 'ROI calculator updated', impact: 'Better sales enablement tool for their reps' }
+      { category: 'features', description: 'ROI calculator updated', impact: 'Better sales enablement tool for their sales representatives' }
     ],
     opportunity: 'If they are closing Fortune 500 deals, the market is validating enterprise demand. Ensure compelling enterprise proof points are ready.'
   });
