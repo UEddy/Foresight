@@ -297,8 +297,8 @@ const GATE_BY_TIER = {
       'AI outreach playbooks',
       'Win/loss correlation',
     ],
-    price: '$99/month',
-    cta: { label: 'Upgrade ($99/month)', onclick: 'Billing.upgradeFromGate()' },
+    price: '$49/month',
+    cta: { label: 'Upgrade ($49/month)', onclick: 'Billing.upgradeFromGate()' },
   },
   pro: {
     title: 'Join the Team Waitlist',
@@ -310,7 +310,7 @@ const GATE_BY_TIER = {
       'Role permissions and team collaboration',
       'Everything in Pro',
     ],
-    price: '$299/month (waitlist)',
+    price: '$149/month (waitlist)',
     cta: { label: 'Join Waitlist', onclick: "Billing.openWaitlist('team')" },
   },
   team: {
@@ -325,7 +325,7 @@ const GATE_BY_TIER = {
       'Priority support',
       'Everything in Team',
     ],
-    price: '$999/month (waitlist)',
+    price: '$349/month (waitlist)',
     cta: { label: 'Join Waitlist', onclick: "Billing.openWaitlist('business')" },
   },
   business: {

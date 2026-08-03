@@ -782,7 +782,7 @@ const Pricing = {
     const WAITLIST_NOTE   = 'Launching soon. Waitlist members get 10% off their first 2 months.';
     const plans = [
       {
-        id: 'pro', name: 'Pro', price: 99, popular: true,
+        id: 'pro', name: 'Pro', price: 49, popular: true,
         desc: 'For founders and operators who need to know the moment a competitor moves.',
         features: [
           feat('Monitor up to 15 pages, up to 5 pages per competitor'),
@@ -794,8 +794,8 @@ const Pricing = {
         ],
       },
       {
-        id: 'team', name: 'Team', price: 299, badge: 'Launching soon',
-        seat: 'Includes 5 seats. Additional seats $49/month each.',
+        id: 'team', name: 'Team', price: 149, badge: 'Launching soon',
+        seat: 'Includes 5 seats. Additional seats $25/month each.',
         banner: WAITLIST_BANNER,
         desc: 'For sales teams that need to act on competitor changes together.',
         features: [
@@ -810,8 +810,8 @@ const Pricing = {
         note: WAITLIST_NOTE,
       },
       {
-        id: 'business', name: 'Business', price: 999, badge: 'Launching soon',
-        seat: 'Includes 10 seats. Additional seats $99/month each.',
+        id: 'business', name: 'Business', price: 349, badge: 'Launching soon',
+        seat: 'Includes 10 seats. Additional seats $49/month each.',
         banner: WAITLIST_BANNER,
         desc: 'Company-wide competitive intelligence.',
         features: [

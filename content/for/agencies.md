@@ -1,6 +1,6 @@
 ---
 title: "Competitor Tracking for Agencies & Consultants | Nivaria"
-description: "Track competitors for every client account in one place. Automated monitoring plus AI briefs you can send straight to clients, from $99/month."
+description: "Track competitors for every client account in one place. Automated monitoring plus AI briefs you can send straight to clients, from $49/month."
 h1: "Competitor Tracking for Agencies and Consultants"
 slug: /for/agencies
 published: 2026-07-24
@@ -48,7 +48,7 @@ This is the part in-house teams do not have to care about, and it is where agenc
 
 A monthly competitive brief per client, sent proactively, is one of the cheapest ways to make a retainer feel worth it. It shows the client you are watching their market even in a quiet month, it creates a natural reason to check in, and it produces talking points for the next strategy call. The work is largely automated, so the cost to you is low and the perceived value is high.
 
-Nivaria monitors each client's competitors daily, writes a brief explaining what changed and what it means, and delivers it where you want it, so you can forward it or fold it into your own reporting. You add competitors per client, and each set stays separate. From $99 a month, 14-day trial, no card required.
+Nivaria monitors each client's competitors daily, writes a brief explaining what changed and what it means, and delivers it where you want it, so you can forward it or fold it into your own reporting. You add competitors per client, and each set stays separate. From $49 a month, 14-day trial, no card required.
 
 Nivaria monitors publicly available information only: website content, pricing pages, product announcements and other publicly accessible business signals.
 

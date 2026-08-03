@@ -46,7 +46,7 @@ The category splits into two price bands with very little in between.
 
 Enterprise platforms are quote-gated and don't publish pricing. Public reporting and buyer accounts consistently place Crayon and Klue in the range of roughly $20,000 to $40,000 per year, with larger deployments running higher. That's defensible for an organisation with a dedicated product marketing or competitive intelligence hire, a sales team of twenty or more, and competitive deals every week.
 
-Below that sits a band of self-serve tools between $10 and $100 a month. Most of these are page-change monitors: they reliably tell you *that* something changed and leave the interpretation to you. Nivaria sits at the top of that band on price while doing the interpretation work the rest of it skips: monitoring 15 pages with daily AI briefs and talking points from $99 a month, with a 14-day trial and no demo required.
+Below that sits a band of self-serve tools between $10 and $100 a month. Most of these are page-change monitors: they reliably tell you *that* something changed and leave the interpretation to you. Nivaria sits mid-band on price while doing the interpretation work the rest of it skips: monitoring 15 pages with daily AI briefs and talking points from $49 a month, with a 14-day trial and no demo required.
 
 ## How does Nivaria work for sales teams? {#how-nivaria-works}
 

@@ -108,7 +108,7 @@ Sequenced after launch. Order can change based on what early customers ask for.
 - **Status:** conditional on demand
 - **Scope:** Tier 4 ("fortress") capabilities: protected-site scraping
   infrastructure, hourly monitoring, API access and advanced webhooks, and
-  12-month change history. Backs the **Business tier** ($999/mo) currently on the
+  12-month change history. Backs the **Business tier** ($349/mo) currently on the
   waitlist. The Business storefront bullet is "API access and advanced webhook
   delivery" (nothing bespoke is sold through the storefront).
 - **Business definition (locked June 2026):** No advertised competitor cap. Copy:

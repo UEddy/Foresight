@@ -338,19 +338,19 @@ const TRIAL_EMAIL_COPY = {
   day10: {
     subject: (daysLeft) => `${daysLeft} days left in your Nivaria Pro trial`,
     heading: 'Your trial is winding down',
-    body: (daysLeft) => `You have ${daysLeft} days left in your 14-day Pro trial. After that you stay on the Free plan with 1 monitored competitor, manual checks, and AI briefs by email. Nothing gets deleted. To keep daily monitoring on up to 15 pages, upgrade to Pro for $99 a month.`,
+    body: (daysLeft) => `You have ${daysLeft} days left in your 14-day Pro trial. After that you stay on the Free plan with 1 monitored competitor, manual checks, and AI briefs by email. Nothing gets deleted. To keep daily monitoring on up to 15 pages, upgrade to Pro for $49 a month.`,
     cta: 'Upgrade to Pro',
   },
   day13: {
     subject: () => 'Your Nivaria trial ends tomorrow',
     heading: 'Last day of Pro',
-    body: () => 'Your 14-day Pro trial ends tomorrow. After that you stay on the Free plan: 1 monitored competitor, manual checks, and AI briefs by email. Your account, briefs, and competitors are all kept. Upgrade to Pro for $99 a month to keep daily monitoring on up to 15 pages.',
+    body: () => 'Your 14-day Pro trial ends tomorrow. After that you stay on the Free plan: 1 monitored competitor, manual checks, and AI briefs by email. Your account, briefs, and competitors are all kept. Upgrade to Pro for $49 a month to keep daily monitoring on up to 15 pages.',
     cta: 'Upgrade to Pro',
   },
   expiry: {
     subject: () => 'Your Nivaria trial ended. Your account is still active.',
     heading: 'You are now on the Free plan',
-    body: () => 'Your Pro trial has ended and your account moved to the Free plan. You keep 1 monitored competitor, manual checks, and AI briefs by email. Competitors above the Free limit are archived, not deleted, and come back the moment you upgrade. Pro is $99 a month.',
+    body: () => 'Your Pro trial has ended and your account moved to the Free plan. You keep 1 monitored competitor, manual checks, and AI briefs by email. Competitors above the Free limit are archived, not deleted, and come back the moment you upgrade. Pro is $49 a month.',
     cta: 'Upgrade to Pro',
   },
 };
